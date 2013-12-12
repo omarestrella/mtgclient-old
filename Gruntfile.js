@@ -12,15 +12,15 @@ module.exports = function (grunt) {
         watch: {
             scripts: {
                 files: ['app/javascripts/**/*.js'],
-                tasks: ['transpile', 'uglify'],
+                tasks: ['transpile', 'uglify:main'],
                 options: {
                     spawn: false
                 },
             },
 
-            thirdyParty: {
+            thirdParty: {
                 files: ['vendor/**/*.js'],
-                tasks: ['uglify']
+                tasks: ['uglify:thirdParty']
             },
 
             styles: {

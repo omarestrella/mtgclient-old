@@ -1,3 +1,13 @@
 <div class="container">
-    {{outlet}}
+    <div class="col-sm-3 card-list">
+        {{#each content}}
+            {{#link-to "card.detail" id}}
+                <h4>{{name}}</h4>
+            {{/link-to}}
+        {{/each}}
+    </div>
+
+    <div class="col-sm-8 col-sm-offset-3">
+        {{outlet}}
+    </div>
 </div>

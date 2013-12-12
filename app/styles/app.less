@@ -1,1 +1,36 @@
 @import '../../vendor/bootstrap/less/bootstrap';
+
+html, body {
+    min-height: 100%;
+}
+
+.card-list {
+    position: absolute;
+    top: 0;
+    left: 0;
+
+    height: 100%; 
+
+    overflow: scroll;
+
+    a {
+        display: block;
+
+        height: 60px;
+
+        margin: 0 -15px;
+        padding: 6px;
+
+        border-bottom: 1px solid #ccc;
+
+        h4 {
+            margin: 0 15px;
+        }
+
+        &:hover {
+            background-color: #f3f3f3;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    }
+}
