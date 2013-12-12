@@ -7,12 +7,12 @@ var location = (function () {
 }());
 
 MTG.ApplicationAdapter = DS.RESTAdapter.extend({
-    // host: location,
     namespace: location,
+    serializer: MTG.ApplicationSerializer,
 
     buildURL: function (type, id) {
         var url = '%@/%@/'.fmt(this.namespace, type);
-        
+
         if (id) {
             url += '%@/'.fmt(id);
         }

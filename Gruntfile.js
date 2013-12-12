@@ -6,8 +6,8 @@ module.exports = function (grunt) {
     grunt.loadNpmTasks('grunt-ember-templates');
     grunt.loadNpmTasks('grunt-es6-module-transpiler');
 
-    grunt.registerTask('default', '', ['connect', 'watch']);
-    
+    grunt.registerTask('default', '', ['transpile', 'uglify:main', 'connect', 'watch']);
+
     grunt.initConfig({
         watch: {
             scripts: {
@@ -78,6 +78,12 @@ module.exports = function (grunt) {
                     ]
                 }
             },
+
+            options: {
+                mangle: false,
+                compress: false,
+                beautify: true
+            }
         },
 
         connect: {
