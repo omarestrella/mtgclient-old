@@ -3,12 +3,18 @@ MTG.ApplicationController = Ember.Controller.extend({
 
     searchQuery: null,
 
+    showMenu: false,
+
     searching: false,
     showFilters: false,
 
     actions: {
         toggleFilters: function () {
             this.toggleProperty('showFilters');
+        },
+
+        toggleMenu: function () {
+            this.toggleProperty('showMenu');
         }
     },
 

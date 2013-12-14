@@ -121,11 +121,15 @@
     MTG.ApplicationController = Ember.Controller.extend({
         needs: [ "filter" ],
         searchQuery: null,
+        showMenu: false,
         searching: false,
         showFilters: false,
         actions: {
             toggleFilters: function() {
                 this.toggleProperty("showFilters");
+            },
+            toggleMenu: function() {
+                this.toggleProperty("showMenu");
             }
         },
         searchQueryChanged: function() {
@@ -148,7 +152,26 @@
 
 (function() {
     "use strict";
-    MTG.ApplicationView = Ember.View.extend({});
+    MTG.ApplicationView = Ember.View.extend({
+        routeChanged: function() {
+            this.closeMenu();
+        }.observes("MTG.router.url"),
+        closeMenu: function() {
+            this.set("controller.showMenu", false);
+        },
+        handleClick: function(event) {
+            var target = $(event.target);
+            if (!target.parents(".card-list").length && !target.parents(".slide").length) {
+                this.closeMenu();
+            }
+        },
+        click: function(event) {
+            this.handleClick(event);
+        },
+        touchstart: function(event) {
+            this.handleClick(event);
+        }
+    });
 })();
 
 (function() {
