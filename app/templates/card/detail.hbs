@@ -1,3 +1,14 @@
-<h2>{{name}}</h2>
+<div class="row">
+    <div class="col-sm-4">
+        <img class="card-image" {{bind-attr src=mtgImage}} />
+    </div>
 
-<img {{bind-attr src=image}} />
+    <div class="col-sm-6">
+        <h2>{{name}}</h2>
+
+        <p class="card-text">
+            {{breaklines text}}
+        </p>
+    </div>
+</div>
+

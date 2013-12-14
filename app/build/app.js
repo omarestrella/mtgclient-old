@@ -21,6 +21,12 @@
             Ember.Logger.error(error.stack);
         }
     });
+    Ember.Handlebars.registerBoundHelper("breaklines", function(text) {
+        text = Handlebars.Utils.escapeExpression(text);
+        text = text.toString();
+        text = text.replace(/(\r\n|\n|\r)/gm, "<br />");
+        return new Handlebars.SafeString(text);
+    });
     __exports__.MTG = MTG;
 })(window);
 
@@ -66,8 +72,41 @@
         },
         extractArray: function(store, type, payload) {
             var data = {}, dataKey = Ember.String.pluralize(type.typeKey);
-            data[dataKey] = payload;
+            data[dataKey] = payload.results;
             return this._super(store, type, data);
+        },
+        rootJSON: function(json, type, pluralize) {
+            var root = this.rootForType(type);
+            if (pluralize === "pluralize") {
+                root = this.pluralize(root);
+            }
+            var rootedJSON = {};
+            rootedJSON[root] = json;
+            return rootedJSON;
+        },
+        normalize: function(type, payload, property) {
+            for (var prop in payload) {
+                if (payload.hasOwnProperty(prop)) {
+                    payload[prop.camelize()] = payload[prop];
+                }
+            }
+            return this._super(type, payload, property);
+        },
+        extractMeta: function(store, type, payload) {
+            if (payload && payload.next) {
+                var nextUrl = payload.next;
+                store.metaForType(type, {
+                    next: payload.next.split("=")[1]
+                });
+                delete payload.next;
+            }
+            if (payload && payload.prev) {
+                var prevUrl = payload.prev;
+                store.metaForType(type, {
+                    next: payload.prev.split("=")[1]
+                });
+                delete payload.prev;
+            }
         }
     });
 })();
@@ -76,16 +115,23 @@
     "use strict";
     MTG.ApplicationController = Ember.Controller.extend({
         search: null,
+        searching: false,
         searchChanged: function() {
-            Ember.run.debounce(this, function() {
+            var promise, self = this;
+            if (!this.get("searching")) {
+                this.set("searching", true);
                 if (this.get("search")) {
-                    this.set("content", this.store.find("card", {
+                    promise = this.store.find("card", {
                         search: this.get("search")
-                    }));
+                    });
                 } else {
-                    this.set("content", this.store.find("card"));
+                    promise = this.store.find("card");
                 }
-            }, 400);
+                promise.then(function(cards) {
+                    self.set("content", cards);
+                    self.set("searching", false);
+                });
+            }
         }.observes("search")
     });
 })();
@@ -114,14 +160,19 @@
         power: DS.attr(),
         toughness: DS.attr(),
         image_name: DS.attr(),
+        multiverse_id: DS.attr(),
         shortSet: function() {
             return this.get("card_set").match(/\(\w+\)/)[0].match(/\w+/)[0];
         }.property("card_set"),
-        image: function() {
+        mtgImage: function() {
             var url = "http://mtgimage.com/set/%@/%@.jpg";
             var setName = this.get("shortSet");
             return url.fmt(setName, this.get("name").toLowerCase());
-        }.property("image_name")
+        }.property("image_name"),
+        gathererImage: function() {
+            var url = "http://gatherer.wizards.com/Handlers/Image.ashx?multiverseid=%@&type=card";
+            return url.fmt(this.get("multiverse_id"));
+        }.property("multiverse_id")
     });
 })();
 
@@ -138,5 +189,13 @@
         model: function(params) {
             return this.store.find("card", params.id);
         }
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.CardDetailView = Ember.View.extend({
+        templateName: "card/detail",
+        classNames: [ "card-detail" ]
     });
 })();
