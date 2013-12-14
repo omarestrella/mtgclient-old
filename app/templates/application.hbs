@@ -1,7 +1,21 @@
 <div class="container">
     <div class="col-sm-3 card-list">
-        <div class="search">
-            {{input value=search classNames="form-control" placeholder="Search..."}}
+        <div class="search row">
+            <div class="col-sm-8">
+                {{input value=searchQuery classNames="form-control" placeholder="Search..."}}
+            </div>
+
+            <div class="col-sm-4">
+                <button class="btn btn-default" {{action toggleFilters}}>
+                    Filters
+                </button>
+            </div>
+        </div>
+
+        <div {{bind-attr class=":filters :row showFilters:show-filters:"}}>
+            <div class="col-sm-12">
+                {{render "filter"}}
+            </div>
         </div>
 
         {{#each content}}

@@ -1,25 +1,23 @@
 MTG.ApplicationController = Ember.Controller.extend({
-    search: null,
+    needs: ['filter'],
+
+    searchQuery: null,
 
     searching: false,
+    showFilters: false,
 
-    searchChanged: function () {
-        var promise,
-            self = this;
-
-        if(!this.get('searching')) {
-            this.set('searching', true);
-
-            if(this.get('search')) {
-                promise = this.store.find('card', { search: this.get('search') })
-            } else {
-                promise = this.store.find('card');
-            }
-
-            promise.then(function (cards) {
-                self.set('content', cards);
-                self.set('searching', false);
-            });
+    actions: {
+        toggleFilters: function () {
+            this.toggleProperty('showFilters');
         }
-    }.observes('search')
+    },
+
+    searchQueryChanged: function () {
+        this.set('controllers.filter.searchQuery', this.get('searchQuery'));
+    }.observes('searchQuery'),
+
+    searchContentChanged: function () {
+        this.set('content', this.get('controllers.filter.content'));
+    }.observes('controllers.filter.content')
+
 });

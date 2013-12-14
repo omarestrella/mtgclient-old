@@ -19,10 +19,35 @@ html, body {
 
         border-bottom: 1px solid #ccc;
 
-        input {
-            width: ~"calc(100% - 15px)";
+        button {
+            margin-left: -4px;
+        }
+    }
 
-            margin: 0 15px;
+    .filters {
+        height: 0;
+        min-height: 0;
+        max-height: 0;
+
+        overflow: hidden;
+
+        padding-top: 6px;
+
+        transition: height .2s, max-height .2s, min-height .2s;
+
+        &.show-filters {
+            min-height: 60px;
+            max-height: 300px;
+
+            border-bottom: 1px solid #ccc;
+        }
+
+        .filter-field {
+            text-align: right;
+
+            label {
+                padding-top: 6px;
+            }
         }
     }
 
