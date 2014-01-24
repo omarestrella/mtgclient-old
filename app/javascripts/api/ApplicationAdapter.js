@@ -1,6 +1,6 @@
 var location = (function () {
     if(window.location.hostname === 'localhost') {
-        return 'http://localhost:9000';
+         return 'http://localhost:9000';
     }
 
     return 'http://gatheringapi.herokuapp.com';

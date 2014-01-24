@@ -38,6 +38,7 @@
 (function() {
     "use strict";
     MTG.Router.map(function() {
+        this.resource("search");
         this.resource("card", function() {
             this.route("detail", {
                 path: "/:id"
@@ -118,59 +119,18 @@
 
 (function() {
     "use strict";
-    MTG.ApplicationController = Ember.Controller.extend({
-        needs: [ "filter" ],
-        searchQuery: null,
-        showMenu: false,
-        searching: false,
-        showFilters: false,
-        actions: {
-            toggleFilters: function() {
-                this.toggleProperty("showFilters");
-            },
-            toggleMenu: function() {
-                this.toggleProperty("showMenu");
-            }
-        },
-        searchQueryChanged: function() {
-            this.set("controllers.filter.searchQuery", this.get("searchQuery"));
-        }.observes("searchQuery"),
-        searchContentChanged: function() {
-            this.set("content", this.get("controllers.filter.content"));
-        }.observes("controllers.filter.content")
-    });
+    MTG.ApplicationController = Ember.Controller.extend({});
 })();
 
 (function() {
     "use strict";
-    MTG.ApplicationRoute = Ember.Route.extend({
-        model: function() {
-            return this.store.find("card");
-        }
-    });
+    MTG.ApplicationRoute = Ember.Route.extend({});
 })();
 
 (function() {
     "use strict";
     MTG.ApplicationView = Ember.View.extend({
-        routeChanged: function() {
-            this.closeMenu();
-        }.observes("MTG.router.url"),
-        closeMenu: function() {
-            this.set("controller.showMenu", false);
-        },
-        handleClick: function(event) {
-            var target = $(event.target);
-            if (!target.parents(".card-list").length && !target.parents(".slide").length) {
-                this.closeMenu();
-            }
-        },
-        click: function(event) {
-            this.handleClick(event);
-        },
-        touchstart: function(event) {
-            this.handleClick(event);
-        }
+        routeChanged: function() {}.observes("MTG.router.url")
     });
 })();
 
@@ -191,7 +151,11 @@
         image_name: DS.attr(),
         multiverse_id: DS.attr(),
         shortSet: function() {
-            return this.get("card_set").match(/\(\w+\)/)[0].match(/\w+/)[0];
+            var set = this.get("card_set");
+            if (set) {
+                return set.match(/\(\w+\)/)[0].match(/\w+/)[0];
+            }
+            return "";
         }.property("card_set"),
         mtgImage: function() {
             var url = "http://mtgimage.com/set/%@/%@.jpg";
@@ -202,6 +166,13 @@
             var url = "http://gatherer.wizards.com/Handlers/Image.ashx?multiverseid=%@&type=card";
             return url.fmt(this.get("multiverse_id"));
         }.property("multiverse_id")
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.CardController = Ember.ObjectController.extend({
+        cardBinding: "model"
     });
 })();
 
@@ -226,6 +197,86 @@
     MTG.CardDetailView = Ember.View.extend({
         templateName: "card/detail",
         classNames: [ "card-detail" ]
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.CardListComponent = Ember.Component.extend({
+        needs: [ "filter" ],
+        classNames: [ "card-list" ],
+        delegate: null,
+        searchQuery: null,
+        showMenu: false,
+        searching: false,
+        showFilters: false,
+        searchQueryChanged: function() {
+            this.set("controllers.filter.searchQuery", this.get("searchQuery"));
+        }.observes("searchQuery"),
+        searchContentChanged: function() {
+            this.set("content", this.get("controllers.filter.content"));
+        }.observes("controllers.filter.content")
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.FilterController = Ember.ArrayController.extend({
+        searchQuery: "",
+        cmc: null,
+        color: null,
+        searchParametersChanged: function() {
+            var promise, self = this;
+            var params = {};
+            var search = this.get("searchQuery");
+            var cmc = this.get("cmc");
+            if (search) {
+                params.search = search;
+            }
+            if (cmc) {
+                params.cmc = cmc;
+            }
+            if (params && Ember.keys(params).length > 0) {
+                promise = this.store.find("card", params);
+            } else {
+                promise = this.store.find("card");
+            }
+            promise.then(function(cards) {
+                self.set("content", cards);
+            });
+        }.observes("searchQuery", "cmc")
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.SearchController = Ember.Controller.extend({
+        card: null,
+        actions: {
+            selectCard: function(card) {
+                var self = this;
+                card.reload().then(function() {
+                    self.set("card", card);
+                });
+            }
+        }
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.SearchRoute = Ember.Route.extend({
+        model: function() {
+            return this.store.find("card");
+        }
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.SearchView = Ember.View.extend({
+        templateName: "search/search",
+        classNames: [ "search" ]
     });
 })();
 

@@ -1,13 +1,13 @@
 <div class="row">
     <div class="col-sm-4">
-        <img class="card-image" {{bind-attr src=mtgImage}} />
+        <img class="card-image" {{bind-attr src=card.mtgImage}} />
     </div>
 
     <div class="col-sm-6">
-        <h2>{{name}}</h2>
+        <h2>{{card.name}}</h2>
 
         <p class="card-text">
-            {{breaklines text}}
+            {{breaklines card.text}}
         </p>
     </div>
 </div>

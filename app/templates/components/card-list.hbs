@@ -1,0 +1,23 @@
+<!--<div class="search row">-->
+    <!--<div class="col-sm-8 col-xs-8">-->
+        <!--{{input value=searchQuery classNames="form-control" placeholder="Search..."}}-->
+    <!--</div>-->
+
+    <!--<div class="col-sm-4 col-xs-4">-->
+        <!--<button class="btn btn-default" {{action toggleFilters}}>-->
+            <!--Filters-->
+        <!--</button>-->
+    <!--</div>-->
+<!--</div>-->
+
+<!--<div {{bind-attr class=":filters :row"}}>-->
+    <!--<div class="col-sm-12">-->
+        <!--{{render "filter"}}-->
+    <!--</div>-->
+<!--</div>-->
+
+{{#each card in delegate.content}}
+    <a href="#" {{action selectCard card target=delegate}}>
+        <h4>{{unbound card.name}}</h4>
+    </a>
+{{/each}}

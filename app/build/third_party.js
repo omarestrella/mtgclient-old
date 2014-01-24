@@ -8078,7 +8078,13 @@ var Handlebars = function() {
             window.Em = window.Ember = Em = Ember;
         }
     }
-    Ember.ENV = "undefined" === typeof ENV ? {} : ENV;
+    if (Ember.ENV) {} else if ("undefined" !== typeof EmberENV) {
+        Ember.ENV = EmberENV;
+    } else if ("undefined" !== typeof ENV) {
+        Ember.ENV = ENV;
+    } else {
+        Ember.ENV = {};
+    }
     if (!("MANDATORY_SETTER" in Ember.ENV)) {
         Ember.ENV.MANDATORY_SETTER = true;
     }
@@ -8149,7 +8155,7 @@ var Handlebars = function() {
 })();
 
 (function() {
-    var define, requireModule;
+    var define, requireModule, require, requirejs;
     (function() {
         var registry = {}, seen = {};
         define = function(name, deps, callback) {
@@ -8158,28 +8164,43 @@ var Handlebars = function() {
                 callback: callback
             };
         };
-        requireModule = function(name) {
+        requirejs = require = requireModule = function(name) {
+            requirejs._eak_seen = registry;
             if (seen[name]) {
                 return seen[name];
             }
             seen[name] = {};
-            var mod, deps, callback, reified, exports;
-            mod = registry[name];
-            if (!mod) {
-                throw new Error("Module '" + name + "' not found.");
+            if (!registry[name]) {
+                throw new Error("Could not find module " + name);
             }
-            deps = mod.deps;
-            callback = mod.callback;
-            reified = [];
+            var mod = registry[name], deps = mod.deps, callback = mod.callback, reified = [], exports;
             for (var i = 0, l = deps.length; i < l; i++) {
                 if (deps[i] === "exports") {
                     reified.push(exports = {});
                 } else {
-                    reified.push(requireModule(deps[i]));
+                    reified.push(requireModule(resolve(deps[i])));
                 }
             }
             var value = callback.apply(this, reified);
             return seen[name] = exports || value;
+            function resolve(child) {
+                if (child.charAt(0) !== ".") {
+                    return child;
+                }
+                var parts = child.split("/");
+                var parentBase = name.split("/").slice(0, -1);
+                for (var i = 0, l = parts.length; i < l; i++) {
+                    var part = parts[i];
+                    if (part === "..") {
+                        parentBase.pop();
+                    } else if (part === ".") {
+                        continue;
+                    } else {
+                        parentBase.push(part);
+                    }
+                }
+                return parentBase.join("/");
+            }
         };
     })();
     (function() {
@@ -8194,15 +8215,22 @@ var Handlebars = function() {
         Ember.toString = function() {
             return "Ember";
         };
-        Ember.VERSION = "1.2.0";
-        if ("undefined" === typeof ENV) {
-            exports.ENV = {};
+        Ember.VERSION = "1.3.1";
+        if (Ember.ENV) {} else if ("undefined" !== typeof EmberENV) {
+            Ember.ENV = EmberENV;
+        } else if ("undefined" !== typeof ENV) {
+            Ember.ENV = ENV;
+        } else {
+            Ember.ENV = {};
         }
-        if ("undefined" === typeof ENV.DISABLE_RANGE_API) {
-            ENV.DISABLE_RANGE_API = true;
-        }
-        Ember.ENV = Ember.ENV || ENV;
         Ember.config = Ember.config || {};
+        if ("undefined" === typeof Ember.ENV.DISABLE_RANGE_API) {
+            Ember.ENV.DISABLE_RANGE_API = true;
+        }
+        if ("undefined" === typeof MetamorphENV) {
+            exports.MetamorphENV = {};
+        }
+        MetamorphENV.DISABLE_RANGE_API = Ember.ENV.DISABLE_RANGE_API;
         Ember.FEATURES = Ember.ENV.FEATURES || {};
         Ember.FEATURES.isEnabled = function(feature) {
             var featureValue = Ember.FEATURES[feature];
@@ -8433,6 +8461,9 @@ var Handlebars = function() {
         var errorProps = [ "description", "fileName", "lineNumber", "message", "name", "number", "stack" ];
         Ember.Error = function() {
             var tmp = Error.apply(this, arguments);
+            if (Error.captureStackTrace) {
+                Error.captureStackTrace(this, Ember.Error);
+            }
             for (var idx = 0; idx < errorProps.length; idx++) {
                 this[errorProps[idx]] = tmp[errorProps[idx]];
             }
@@ -8508,15 +8539,6 @@ var Handlebars = function() {
         };
         var META_KEY = Ember.GUID_KEY + "_meta";
         Ember.META_KEY = META_KEY;
-        var EMPTY_META = {
-            descs: {},
-            watching: {}
-        };
-        if (MANDATORY_SETTER) {
-            EMPTY_META.values = {};
-        }
-        Ember.EMPTY_META = EMPTY_META;
-        if (Object.freeze) Object.freeze(EMPTY_META);
         var isDefinePropertySimulated = Ember.platform.defineProperty.isSimulated;
         function Meta(obj) {
             this.descs = {};
@@ -8524,10 +8546,28 @@ var Handlebars = function() {
             this.cache = {};
             this.source = obj;
         }
+        Meta.prototype = {
+            descs: null,
+            deps: null,
+            watching: null,
+            listeners: null,
+            cache: null,
+            source: null,
+            mixins: null,
+            bindings: null,
+            chains: null,
+            chainWatchers: null,
+            values: null
+        };
         if (isDefinePropertySimulated) {
             Meta.prototype.__preventPlainObject__ = true;
             Meta.prototype.toJSON = function() {};
         }
+        var EMPTY_META = new Meta(null);
+        if (MANDATORY_SETTER) {
+            EMPTY_META.values = {};
+        }
+        Ember.EMPTY_META = EMPTY_META;
         Ember.meta = function meta(obj, writable) {
             var ret = obj[META_KEY];
             if (writable === false) return ret || EMPTY_META;
@@ -8717,7 +8757,7 @@ var Handlebars = function() {
             if (ret === "function") {
                 if (Ember.Object && Ember.Object.detect(item)) ret = "class";
             } else if (ret === "object") {
-                if (item instanceof Error) ret = "error"; else if (Ember.Object && item instanceof Ember.Object) ret = "instance"; else ret = "object";
+                if (item instanceof Error) ret = "error"; else if (Ember.Object && item instanceof Ember.Object) ret = "instance"; else if (item instanceof Date) ret = "date";
             }
             return ret;
         };
@@ -9410,7 +9450,7 @@ var Handlebars = function() {
                     if (value !== currentValue) {
                         Ember.propertyWillChange(obj, keyName);
                         if (MANDATORY_SETTER) {
-                            if (currentValue === undefined && !(keyName in obj)) {
+                            if (currentValue === undefined && !(keyName in obj) || !obj.propertyIsEnumerable(keyName)) {
                                 Ember.defineProperty(obj, keyName, null, value);
                             } else {
                                 meta.values[keyName] = value;
@@ -9434,18 +9474,18 @@ var Handlebars = function() {
         function setPath(root, path, value, tolerant) {
             var keyName;
             keyName = path.slice(path.lastIndexOf(".") + 1);
-            path = path.slice(0, path.length - (keyName.length + 1));
+            path = path === keyName ? keyName : path.slice(0, path.length - (keyName.length + 1));
             if (path !== "this") {
                 root = getPath(root, path);
             }
             if (!keyName || keyName.length === 0) {
-                throw new Ember.Error("You passed an empty path");
+                throw new Ember.Error("Property set failed: You passed an empty path");
             }
             if (!root) {
                 if (tolerant) {
                     return;
                 } else {
-                    throw new Ember.Error("Object in path " + path + " could not be found or was destroyed.");
+                    throw new Ember.Error('Property set failed: object in path "' + path + '" could not be found or was destroyed.');
                 }
             }
             return set(root, keyName, value);
@@ -9598,7 +9638,7 @@ var Handlebars = function() {
     })();
     (function() {
         function consoleMethod(name) {
-            var consoleObj;
+            var consoleObj, logToConsole;
             if (Ember.imports.console) {
                 consoleObj = Ember.imports.console;
             } else if (typeof console !== "undefined") {
@@ -9607,9 +9647,11 @@ var Handlebars = function() {
             var method = typeof consoleObj === "object" ? consoleObj[name] : null;
             if (method) {
                 if (method.apply) {
-                    return function() {
+                    logToConsole = function() {
                         method.apply(consoleObj, arguments);
                     };
+                    logToConsole.displayName = "console." + name;
+                    return logToConsole;
                 } else {
                     return function() {
                         var message = Array.prototype.join.call(arguments, ", ");
@@ -9745,7 +9787,7 @@ var Handlebars = function() {
                     m.values[keyName] = obj[keyName];
                     o_defineProperty(obj, keyName, {
                         configurable: true,
-                        enumerable: true,
+                        enumerable: obj.propertyIsEnumerable(keyName),
                         set: Ember.MANDATORY_SETTER_FUNCTION,
                         get: Ember.DEFAULT_GETTER_FUNCTION(keyName)
                     });
@@ -9764,11 +9806,18 @@ var Handlebars = function() {
                 if (MANDATORY_SETTER && keyName in obj) {
                     o_defineProperty(obj, keyName, {
                         configurable: true,
-                        enumerable: true,
-                        writable: true,
-                        value: m.values[keyName]
+                        enumerable: obj.propertyIsEnumerable(keyName),
+                        set: function(val) {
+                            o_defineProperty(obj, keyName, {
+                                configurable: true,
+                                writable: true,
+                                enumerable: true,
+                                value: val
+                            });
+                            delete m.values[keyName];
+                        },
+                        get: Ember.DEFAULT_GETTER_FUNCTION(keyName)
                     });
-                    delete m.values[keyName];
                 }
             } else if (watching[keyName] > 1) {
                 watching[keyName]--;
@@ -10198,11 +10247,8 @@ var Handlebars = function() {
             return this;
         };
         ComputedPropertyPrototype.property = function() {
-            var addArg;
-            var args = [];
-            for (var i = 0, l = arguments.length; i < l; i++) {
-                args.push(arguments[i]);
-            }
+            var args;
+            args = a_slice.call(arguments);
             this._dependentKeys = args;
             return this;
         };
@@ -10745,7 +10791,7 @@ var Handlebars = function() {
                     if (typeof method === "string") {
                         method = target[method];
                     }
-                    var stack = this.DEBUG ? new Error().stack : undefined, args = arguments.length > 3 ? slice.call(arguments, 3) : undefined;
+                    var stack = this.DEBUG ? new Error() : undefined, args = arguments.length > 3 ? slice.call(arguments, 3) : undefined;
                     if (!this.currentInstance) {
                         createAutorun(this);
                     }
@@ -10759,7 +10805,7 @@ var Handlebars = function() {
                     if (typeof method === "string") {
                         method = target[method];
                     }
-                    var stack = this.DEBUG ? new Error().stack : undefined, args = arguments.length > 3 ? slice.call(arguments, 3) : undefined;
+                    var stack = this.DEBUG ? new Error() : undefined, args = arguments.length > 3 ? slice.call(arguments, 3) : undefined;
                     if (!this.currentInstance) {
                         createAutorun(this);
                     }
@@ -10818,47 +10864,28 @@ var Handlebars = function() {
                         }
                     }
                     timers.splice(i, 0, executeAt, fn);
-                    if (laterTimer && laterTimerExpiresAt < executeAt) {
-                        return fn;
-                    }
-                    if (laterTimer) {
-                        clearTimeout(laterTimer);
-                        laterTimer = null;
-                    }
-                    laterTimer = global.setTimeout(function() {
-                        executeTimers(self);
-                        laterTimer = null;
-                        laterTimerExpiresAt = null;
-                    }, wait);
-                    laterTimerExpiresAt = executeAt;
+                    updateLaterTimer(self, executeAt, wait);
                     return fn;
                 },
                 throttle: function(target, method) {
-                    var self = this, args = arguments, wait = parseInt(pop.call(args), 10), throttler;
-                    for (var i = 0, l = throttlers.length; i < l; i++) {
-                        throttler = throttlers[i];
-                        if (throttler[0] === target && throttler[1] === method) {
-                            return;
-                        }
+                    var self = this, args = arguments, wait = parseInt(pop.call(args), 10), throttler, index, timer;
+                    index = findThrottler(target, method);
+                    if (index > -1) {
+                        return throttlers[index];
                     }
-                    var timer = global.setTimeout(function() {
+                    timer = global.setTimeout(function() {
                         self.run.apply(self, args);
-                        var index = -1;
-                        for (var i = 0, l = throttlers.length; i < l; i++) {
-                            throttler = throttlers[i];
-                            if (throttler[0] === target && throttler[1] === method) {
-                                index = i;
-                                break;
-                            }
-                        }
+                        var index = findThrottler(target, method);
                         if (index > -1) {
                             throttlers.splice(index, 1);
                         }
                     }, wait);
-                    throttlers.push([ target, method, timer ]);
+                    throttler = [ target, method, timer ];
+                    throttlers.push(throttler);
+                    return throttler;
                 },
                 debounce: function(target, method) {
-                    var self = this, args = arguments, immediate = pop.call(args), wait, index, debouncee;
+                    var self = this, args = arguments, immediate = pop.call(args), wait, index, debouncee, timer;
                     if (typeof immediate === "number" || typeof immediate === "string") {
                         wait = immediate;
                         immediate = false;
@@ -10867,24 +10894,26 @@ var Handlebars = function() {
                     }
                     wait = parseInt(wait, 10);
                     index = findDebouncee(target, method);
-                    if (index !== -1) {
+                    if (index > -1) {
                         debouncee = debouncees[index];
                         debouncees.splice(index, 1);
                         clearTimeout(debouncee[2]);
                     }
-                    var timer = global.setTimeout(function() {
+                    timer = global.setTimeout(function() {
                         if (!immediate) {
                             self.run.apply(self, args);
                         }
-                        index = findDebouncee(target, method);
-                        if (index) {
+                        var index = findDebouncee(target, method);
+                        if (index > -1) {
                             debouncees.splice(index, 1);
                         }
                     }, wait);
                     if (immediate && index === -1) {
                         self.run.apply(self, args);
                     }
-                    debouncees.push([ target, method, timer ]);
+                    debouncee = [ target, method, timer ];
+                    debouncees.push(debouncee);
+                    return debouncee;
                 },
                 cancelTimers: function() {
                     var i, len;
@@ -10910,18 +10939,37 @@ var Handlebars = function() {
                     return !!timers.length || autorun;
                 },
                 cancel: function(timer) {
-                    if (timer && typeof timer === "object" && timer.queue && timer.method) {
+                    var timerType = typeof timer;
+                    if (timer && timerType === "object" && timer.queue && timer.method) {
                         return timer.queue.cancel(timer);
-                    } else if (typeof timer === "function") {
+                    } else if (timerType === "function") {
                         for (var i = 0, l = timers.length; i < l; i += 2) {
                             if (timers[i + 1] === timer) {
                                 timers.splice(i, 2);
                                 return true;
                             }
                         }
+                    } else if (window.toString.call(timer) === "[object Array]") {
+                        return this._cancelItem(findThrottler, throttlers, timer) || this._cancelItem(findDebouncee, debouncees, timer);
                     } else {
                         return;
                     }
+                },
+                _cancelItem: function(findMethod, array, timer) {
+                    var item, index;
+                    if (timer.length < 3) {
+                        return false;
+                    }
+                    index = findMethod(timer[0], timer[1]);
+                    if (index > -1) {
+                        item = array[index];
+                        if (item[2] === timer[2]) {
+                            array.splice(index, 1);
+                            clearTimeout(timer[2]);
+                            return true;
+                        }
+                    }
+                    return false;
                 }
             };
             Backburner.prototype.schedule = Backburner.prototype.defer;
@@ -10933,6 +10981,19 @@ var Handlebars = function() {
                     autorun = null;
                     backburner.end();
                 });
+            }
+            function updateLaterTimer(self, executeAt, wait) {
+                if (!laterTimer || executeAt < laterTimerExpiresAt) {
+                    if (laterTimer) {
+                        clearTimeout(laterTimer);
+                    }
+                    laterTimer = global.setTimeout(function() {
+                        laterTimer = null;
+                        laterTimerExpiresAt = null;
+                        executeTimers(self);
+                    }, wait);
+                    laterTimerExpiresAt = executeAt;
+                }
             }
             function executeTimers(self) {
                 var now = +new Date(), time, fns, i, l;
@@ -10949,12 +11010,7 @@ var Handlebars = function() {
                     }
                 });
                 if (timers.length) {
-                    laterTimer = global.setTimeout(function() {
-                        executeTimers(self);
-                        laterTimer = null;
-                        laterTimerExpiresAt = null;
-                    }, timers[0] - now);
-                    laterTimerExpiresAt = timers[0];
+                    updateLaterTimer(self, timers[0], timers[0] - now);
                 }
             }
             function findDebouncee(target, method) {
@@ -10962,6 +11018,17 @@ var Handlebars = function() {
                 for (var i = 0, l = debouncees.length; i < l; i++) {
                     debouncee = debouncees[i];
                     if (debouncee[0] === target && debouncee[1] === method) {
+                        index = i;
+                        break;
+                    }
+                }
+                return index;
+            }
+            function findThrottler(target, method) {
+                var throttler, index = -1;
+                for (var i = 0, l = throttlers.length; i < l; i++) {
+                    throttler = throttlers[i];
+                    if (throttler[0] === target && throttler[1] === method) {
                         index = i;
                         break;
                     }
@@ -11625,7 +11692,8 @@ var Handlebars = function() {
         };
         Ember.observer = function() {
             var func = a_slice.call(arguments, -1)[0];
-            var paths = a_slice.call(arguments, 0, -1);
+            var paths;
+            paths = a_slice.call(arguments, 0, -1);
             if (typeof func !== "function") {
                 func = arguments[0];
                 paths = a_slice.call(arguments, 1);
@@ -11645,7 +11713,8 @@ var Handlebars = function() {
         };
         Ember.beforeObserver = function() {
             var func = a_slice.call(arguments, -1)[0];
-            var paths = a_slice.call(arguments, 0, -1);
+            var paths;
+            paths = a_slice.call(arguments, 0, -1);
             if (typeof func !== "function") {
                 func = arguments[0];
                 paths = a_slice.call(arguments, 1);
@@ -11700,21 +11769,38 @@ var Handlebars = function() {
     })();
     (function() {})();
     (function() {
-        define("rsvp/all", [ "rsvp/promise", "exports" ], function(__dependency1__, __exports__) {
+        define("rsvp/all", [ "./promise", "exports" ], function(__dependency1__, __exports__) {
             "use strict";
-            var Promise = __dependency1__.Promise;
-            function all(promises) {
-                if (Object.prototype.toString.call(promises) !== "[object Array]") {
-                    throw new TypeError("You must pass an array to all.");
-                }
+            var Promise = __dependency1__["default"];
+            __exports__["default"] = function all(array, label) {
+                return Promise.all(array, label);
+            };
+        });
+        define("rsvp/all_settled", [ "./promise", "./utils", "exports" ], function(__dependency1__, __dependency2__, __exports__) {
+            "use strict";
+            var Promise = __dependency1__["default"];
+            var isArray = __dependency2__.isArray;
+            var isNonThenable = __dependency2__.isNonThenable;
+            __exports__["default"] = function allSettled(entries, label) {
                 return new Promise(function(resolve, reject) {
-                    var results = [], remaining = promises.length, promise;
+                    if (!isArray(entries)) {
+                        throw new TypeError("You must pass an array to allSettled.");
+                    }
+                    var remaining = entries.length;
+                    var entry;
                     if (remaining === 0) {
                         resolve([]);
+                        return;
                     }
-                    function resolver(index) {
+                    var results = new Array(remaining);
+                    function fulfilledResolver(index) {
                         return function(value) {
-                            resolveAll(index, value);
+                            resolveAll(index, fulfilled(value));
+                        };
+                    }
+                    function rejectedResolver(index) {
+                        return function(reason) {
+                            resolveAll(index, rejected(reason));
                         };
                     }
                     function resolveAll(index, value) {
@@ -11723,117 +11809,67 @@ var Handlebars = function() {
                             resolve(results);
                         }
                     }
-                    for (var i = 0; i < promises.length; i++) {
-                        promise = promises[i];
-                        if (promise && typeof promise.then === "function") {
-                            promise.then(resolver(i), reject);
+                    for (var index = 0; index < entries.length; index++) {
+                        entry = entries[index];
+                        if (isNonThenable(entry)) {
+                            resolveAll(index, fulfilled(entry));
                         } else {
-                            resolveAll(i, promise);
+                            Promise.cast(entry).then(fulfilledResolver(index), rejectedResolver(index));
                         }
                     }
-                });
+                }, label);
+            };
+            function fulfilled(value) {
+                return {
+                    state: "fulfilled",
+                    value: value
+                };
             }
-            __exports__.all = all;
+            function rejected(reason) {
+                return {
+                    state: "rejected",
+                    reason: reason
+                };
+            }
         });
-        define("rsvp/async", [ "exports" ], function(__exports__) {
+        define("rsvp/config", [ "./events", "exports" ], function(__dependency1__, __exports__) {
             "use strict";
-            var browserGlobal = typeof window !== "undefined" ? window : {};
-            var BrowserMutationObserver = browserGlobal.MutationObserver || browserGlobal.WebKitMutationObserver;
-            var async;
-            var local = typeof global !== "undefined" ? global : this;
-            function useNextTick() {
-                return function(callback, arg) {
-                    process.nextTick(function() {
-                        callback(arg);
-                    });
-                };
+            var EventTarget = __dependency1__["default"];
+            var config = {
+                instrument: false
+            };
+            EventTarget.mixin(config);
+            function configure(name, value) {
+                if (name === "onerror") {
+                    config.on("error", value);
+                    return;
+                }
+                if (arguments.length === 2) {
+                    config[name] = value;
+                } else {
+                    return config[name];
+                }
             }
-            function useSetImmediate() {
-                return function(callback, arg) {
-                    setImmediate(function() {
-                        callback(arg);
-                    });
-                };
-            }
-            function useMutationObserver() {
-                var queue = [];
-                var observer = new BrowserMutationObserver(function() {
-                    var toProcess = queue.slice();
-                    queue = [];
-                    toProcess.forEach(function(tuple) {
-                        var callback = tuple[0], arg = tuple[1];
-                        callback(arg);
-                    });
-                });
-                var element = document.createElement("div");
-                observer.observe(element, {
-                    attributes: true
-                });
-                window.addEventListener("unload", function() {
-                    observer.disconnect();
-                    observer = null;
-                }, false);
-                return function(callback, arg) {
-                    queue.push([ callback, arg ]);
-                    element.setAttribute("drainQueue", "drainQueue");
-                };
-            }
-            function useSetTimeout() {
-                return function(callback, arg) {
-                    local.setTimeout(function() {
-                        callback(arg);
-                    }, 1);
-                };
-            }
-            if (typeof setImmediate === "function") {
-                async = useSetImmediate();
-            } else if (typeof process !== "undefined" && {}.toString.call(process) === "[object process]") {
-                async = useNextTick();
-            } else if (BrowserMutationObserver) {
-                async = useMutationObserver();
-            } else {
-                async = useSetTimeout();
-            }
-            __exports__.async = async;
-        });
-        define("rsvp/config", [ "rsvp/async", "exports" ], function(__dependency1__, __exports__) {
-            "use strict";
-            var async = __dependency1__.async;
-            var config = {};
-            config.async = async;
             __exports__.config = config;
+            __exports__.configure = configure;
         });
-        define("rsvp/defer", [ "rsvp/promise", "exports" ], function(__dependency1__, __exports__) {
+        define("rsvp/defer", [ "./promise", "exports" ], function(__dependency1__, __exports__) {
             "use strict";
-            var Promise = __dependency1__.Promise;
-            function defer() {
-                var deferred = {
-                    resolve: undefined,
-                    reject: undefined,
-                    promise: undefined
-                };
+            var Promise = __dependency1__["default"];
+            __exports__["default"] = function defer(label) {
+                var deferred = {};
                 deferred.promise = new Promise(function(resolve, reject) {
                     deferred.resolve = resolve;
                     deferred.reject = reject;
-                });
+                }, label);
                 return deferred;
-            }
-            __exports__.defer = defer;
+            };
         });
         define("rsvp/events", [ "exports" ], function(__exports__) {
             "use strict";
-            var Event = function(type, options) {
-                this.type = type;
-                for (var option in options) {
-                    if (!options.hasOwnProperty(option)) {
-                        continue;
-                    }
-                    this[option] = options[option];
-                }
-            };
             var indexOf = function(callbacks, callback) {
                 for (var i = 0, l = callbacks.length; i < l; i++) {
-                    if (callbacks[i][0] === callback) {
+                    if (callbacks[i] === callback) {
                         return i;
                     }
                 }
@@ -11846,204 +11882,321 @@ var Handlebars = function() {
                 }
                 return callbacks;
             };
-            var EventTarget = {
+            __exports__["default"] = {
                 mixin: function(object) {
                     object.on = this.on;
                     object.off = this.off;
                     object.trigger = this.trigger;
+                    object._promiseCallbacks = undefined;
                     return object;
                 },
-                on: function(eventNames, callback, binding) {
-                    var allCallbacks = callbacksFor(this), callbacks, eventName;
-                    eventNames = eventNames.split(/\s+/);
-                    binding = binding || this;
-                    while (eventName = eventNames.shift()) {
-                        callbacks = allCallbacks[eventName];
-                        if (!callbacks) {
-                            callbacks = allCallbacks[eventName] = [];
-                        }
-                        if (indexOf(callbacks, callback) === -1) {
-                            callbacks.push([ callback, binding ]);
-                        }
+                on: function(eventName, callback) {
+                    var allCallbacks = callbacksFor(this), callbacks;
+                    callbacks = allCallbacks[eventName];
+                    if (!callbacks) {
+                        callbacks = allCallbacks[eventName] = [];
+                    }
+                    if (indexOf(callbacks, callback) === -1) {
+                        callbacks.push(callback);
                     }
                 },
-                off: function(eventNames, callback) {
-                    var allCallbacks = callbacksFor(this), callbacks, eventName, index;
-                    eventNames = eventNames.split(/\s+/);
-                    while (eventName = eventNames.shift()) {
-                        if (!callback) {
-                            allCallbacks[eventName] = [];
-                            continue;
-                        }
-                        callbacks = allCallbacks[eventName];
-                        index = indexOf(callbacks, callback);
-                        if (index !== -1) {
-                            callbacks.splice(index, 1);
-                        }
+                off: function(eventName, callback) {
+                    var allCallbacks = callbacksFor(this), callbacks, index;
+                    if (!callback) {
+                        allCallbacks[eventName] = [];
+                        return;
+                    }
+                    callbacks = allCallbacks[eventName];
+                    index = indexOf(callbacks, callback);
+                    if (index !== -1) {
+                        callbacks.splice(index, 1);
                     }
                 },
                 trigger: function(eventName, options) {
-                    var allCallbacks = callbacksFor(this), callbacks, callbackTuple, callback, binding, event;
+                    var allCallbacks = callbacksFor(this), callbacks, callbackTuple, callback, binding;
                     if (callbacks = allCallbacks[eventName]) {
                         for (var i = 0; i < callbacks.length; i++) {
-                            callbackTuple = callbacks[i];
-                            callback = callbackTuple[0];
-                            binding = callbackTuple[1];
-                            if (typeof options !== "object") {
-                                options = {
-                                    detail: options
-                                };
-                            }
-                            event = new Event(eventName, options);
-                            callback.call(binding, event);
+                            callback = callbacks[i];
+                            callback(options);
                         }
                     }
                 }
             };
-            __exports__.EventTarget = EventTarget;
         });
-        define("rsvp/hash", [ "rsvp/defer", "exports" ], function(__dependency1__, __exports__) {
+        define("rsvp/filter", [ "./all", "./map", "./utils", "exports" ], function(__dependency1__, __dependency2__, __dependency3__, __exports__) {
             "use strict";
-            var defer = __dependency1__.defer;
-            function size(object) {
-                var s = 0;
-                for (var prop in object) {
-                    s++;
-                }
-                return s;
-            }
-            function hash(promises) {
-                var results = {}, deferred = defer(), remaining = size(promises);
-                if (remaining === 0) {
-                    deferred.resolve({});
-                }
-                var resolver = function(prop) {
-                    return function(value) {
-                        resolveAll(prop, value);
-                    };
-                };
-                var resolveAll = function(prop, value) {
-                    results[prop] = value;
-                    if (--remaining === 0) {
-                        deferred.resolve(results);
+            var all = __dependency1__["default"];
+            var map = __dependency2__["default"];
+            var isFunction = __dependency3__.isFunction;
+            var isArray = __dependency3__.isArray;
+            function filter(promises, filterFn, label) {
+                return all(promises, label).then(function(values) {
+                    if (!isArray(promises)) {
+                        throw new TypeError("You must pass an array to filter.");
                     }
-                };
-                var rejectAll = function(error) {
-                    deferred.reject(error);
-                };
-                for (var prop in promises) {
-                    if (promises[prop] && typeof promises[prop].then === "function") {
-                        promises[prop].then(resolver(prop), rejectAll);
-                    } else {
-                        resolveAll(prop, promises[prop]);
+                    if (!isFunction(filterFn)) {
+                        throw new TypeError("You must pass a function to filter's second argument.");
                     }
-                }
-                return deferred.promise;
+                    return map(promises, filterFn, label).then(function(filterResults) {
+                        var i, valuesLen = values.length, filtered = [];
+                        for (i = 0; i < valuesLen; i++) {
+                            if (filterResults[i]) filtered.push(values[i]);
+                        }
+                        return filtered;
+                    });
+                });
             }
-            __exports__.hash = hash;
+            __exports__["default"] = filter;
         });
-        define("rsvp/node", [ "rsvp/promise", "rsvp/all", "exports" ], function(__dependency1__, __dependency2__, __exports__) {
+        define("rsvp/hash", [ "./promise", "./utils", "exports" ], function(__dependency1__, __dependency2__, __exports__) {
             "use strict";
-            var Promise = __dependency1__.Promise;
-            var all = __dependency2__.all;
+            var Promise = __dependency1__["default"];
+            var isNonThenable = __dependency2__.isNonThenable;
+            var keysOf = __dependency2__.keysOf;
+            __exports__["default"] = function hash(object, label) {
+                return new Promise(function(resolve, reject) {
+                    var results = {};
+                    var keys = keysOf(object);
+                    var remaining = keys.length;
+                    var entry, property;
+                    if (remaining === 0) {
+                        resolve(results);
+                        return;
+                    }
+                    function fulfilledTo(property) {
+                        return function(value) {
+                            results[property] = value;
+                            if (--remaining === 0) {
+                                resolve(results);
+                            }
+                        };
+                    }
+                    function onRejection(reason) {
+                        remaining = 0;
+                        reject(reason);
+                    }
+                    for (var i = 0; i < keys.length; i++) {
+                        property = keys[i];
+                        entry = object[property];
+                        if (isNonThenable(entry)) {
+                            results[property] = entry;
+                            if (--remaining === 0) {
+                                resolve(results);
+                            }
+                        } else {
+                            Promise.cast(entry).then(fulfilledTo(property), onRejection);
+                        }
+                    }
+                });
+            };
+        });
+        define("rsvp/instrument", [ "./config", "./utils", "exports" ], function(__dependency1__, __dependency2__, __exports__) {
+            "use strict";
+            var config = __dependency1__.config;
+            var now = __dependency2__.now;
+            __exports__["default"] = function instrument(eventName, promise, child) {
+                try {
+                    config.trigger(eventName, {
+                        guid: promise._guidKey + promise._id,
+                        eventName: eventName,
+                        detail: promise._detail,
+                        childGuid: child && promise._guidKey + child._id,
+                        label: promise._label,
+                        timeStamp: now(),
+                        stack: new Error(promise._label).stack
+                    });
+                } catch (error) {
+                    setTimeout(function() {
+                        throw error;
+                    }, 0);
+                }
+            };
+        });
+        define("rsvp/map", [ "./promise", "./all", "./utils", "exports" ], function(__dependency1__, __dependency2__, __dependency3__, __exports__) {
+            "use strict";
+            var Promise = __dependency1__["default"];
+            var all = __dependency2__["default"];
+            var isArray = __dependency3__.isArray;
+            var isFunction = __dependency3__.isFunction;
+            __exports__["default"] = function map(promises, mapFn, label) {
+                return all(promises, label).then(function(results) {
+                    if (!isArray(promises)) {
+                        throw new TypeError("You must pass an array to map.");
+                    }
+                    if (!isFunction(mapFn)) {
+                        throw new TypeError("You must pass a function to map's second argument.");
+                    }
+                    var resultLen = results.length, mappedResults = [], i;
+                    for (i = 0; i < resultLen; i++) {
+                        mappedResults.push(mapFn(results[i]));
+                    }
+                    return all(mappedResults, label);
+                });
+            };
+        });
+        define("rsvp/node", [ "./promise", "exports" ], function(__dependency1__, __exports__) {
+            "use strict";
+            var Promise = __dependency1__["default"];
+            var slice = Array.prototype.slice;
             function makeNodeCallbackFor(resolve, reject) {
                 return function(error, value) {
                     if (error) {
                         reject(error);
                     } else if (arguments.length > 2) {
-                        resolve(Array.prototype.slice.call(arguments, 1));
+                        resolve(slice.call(arguments, 1));
                     } else {
                         resolve(value);
                     }
                 };
             }
-            function denodeify(nodeFunc) {
+            __exports__["default"] = function denodeify(nodeFunc, binding) {
                 return function() {
-                    var nodeArgs = Array.prototype.slice.call(arguments), resolve, reject;
-                    var thisArg = this;
-                    var promise = new Promise(function(nodeResolve, nodeReject) {
-                        resolve = nodeResolve;
-                        reject = nodeReject;
+                    var nodeArgs = slice.call(arguments), resolve, reject;
+                    var thisArg = this || binding;
+                    return new Promise(function(resolve, reject) {
+                        Promise.all(nodeArgs).then(function(nodeArgs) {
+                            try {
+                                nodeArgs.push(makeNodeCallbackFor(resolve, reject));
+                                nodeFunc.apply(thisArg, nodeArgs);
+                            } catch (e) {
+                                reject(e);
+                            }
+                        });
                     });
-                    all(nodeArgs).then(function(nodeArgs) {
-                        nodeArgs.push(makeNodeCallbackFor(resolve, reject));
-                        try {
-                            nodeFunc.apply(thisArg, nodeArgs);
-                        } catch (e) {
-                            reject(e);
-                        }
-                    });
-                    return promise;
                 };
-            }
-            __exports__.denodeify = denodeify;
+            };
         });
-        define("rsvp/promise", [ "rsvp/config", "rsvp/events", "exports" ], function(__dependency1__, __dependency2__, __exports__) {
+        define("rsvp/promise", [ "./config", "./events", "./instrument", "./utils", "./promise/cast", "./promise/all", "./promise/race", "./promise/resolve", "./promise/reject", "exports" ], function(__dependency1__, __dependency2__, __dependency3__, __dependency4__, __dependency5__, __dependency6__, __dependency7__, __dependency8__, __dependency9__, __exports__) {
             "use strict";
             var config = __dependency1__.config;
-            var EventTarget = __dependency2__.EventTarget;
-            function objectOrFunction(x) {
-                return isFunction(x) || typeof x === "object" && x !== null;
-            }
-            function isFunction(x) {
-                return typeof x === "function";
-            }
-            var Promise = function(resolver) {
-                var promise = this, resolved = false;
-                if (typeof resolver !== "function") {
-                    throw new TypeError("You must pass a resolver function as the sole argument to the promise constructor");
+            var EventTarget = __dependency2__["default"];
+            var instrument = __dependency3__["default"];
+            var objectOrFunction = __dependency4__.objectOrFunction;
+            var isFunction = __dependency4__.isFunction;
+            var now = __dependency4__.now;
+            var cast = __dependency5__["default"];
+            var all = __dependency6__["default"];
+            var race = __dependency7__["default"];
+            var Resolve = __dependency8__["default"];
+            var Reject = __dependency9__["default"];
+            var guidKey = "rsvp_" + now() + "-";
+            var counter = 0;
+            function noop() {}
+            __exports__["default"] = Promise;
+            function Promise(resolver, label) {
+                if (!isFunction(resolver)) {
+                    throw new TypeError("You must pass a resolver function as the first argument to the promise constructor");
                 }
-                if (!(promise instanceof Promise)) {
-                    return new Promise(resolver);
+                if (!(this instanceof Promise)) {
+                    throw new TypeError("Failed to construct 'Promise': Please use the 'new' operator, this object constructor cannot be called as a function.");
                 }
-                var resolvePromise = function(value) {
-                    if (resolved) {
-                        return;
-                    }
-                    resolved = true;
+                this._id = counter++;
+                this._label = label;
+                this._subscribers = [];
+                if (config.instrument) {
+                    instrument("created", this);
+                }
+                if (noop !== resolver) {
+                    invokeResolver(resolver, this);
+                }
+            }
+            function invokeResolver(resolver, promise) {
+                function resolvePromise(value) {
                     resolve(promise, value);
-                };
-                var rejectPromise = function(value) {
-                    if (resolved) {
-                        return;
-                    }
-                    resolved = true;
-                    reject(promise, value);
-                };
-                this.on("promise:resolved", function(event) {
-                    this.trigger("success", {
-                        detail: event.detail
-                    });
-                }, this);
-                this.on("promise:failed", function(event) {
-                    this.trigger("error", {
-                        detail: event.detail
-                    });
-                }, this);
-                this.on("error", onerror);
+                }
+                function rejectPromise(reason) {
+                    reject(promise, reason);
+                }
                 try {
                     resolver(resolvePromise, rejectPromise);
                 } catch (e) {
                     rejectPromise(e);
                 }
-            };
-            function onerror(event) {
-                if (config.onerror) {
-                    config.onerror(event.detail);
-                }
             }
-            var invokeCallback = function(type, promise, callback, event) {
+            Promise.cast = cast;
+            Promise.all = all;
+            Promise.race = race;
+            Promise.resolve = Resolve;
+            Promise.reject = Reject;
+            var PENDING = void 0;
+            var SEALED = 0;
+            var FULFILLED = 1;
+            var REJECTED = 2;
+            function subscribe(parent, child, onFulfillment, onRejection) {
+                var subscribers = parent._subscribers;
+                var length = subscribers.length;
+                subscribers[length] = child;
+                subscribers[length + FULFILLED] = onFulfillment;
+                subscribers[length + REJECTED] = onRejection;
+            }
+            function publish(promise, settled) {
+                var child, callback, subscribers = promise._subscribers, detail = promise._detail;
+                if (config.instrument) {
+                    instrument(settled === FULFILLED ? "fulfilled" : "rejected", promise);
+                }
+                for (var i = 0; i < subscribers.length; i += 3) {
+                    child = subscribers[i];
+                    callback = subscribers[i + settled];
+                    invokeCallback(settled, child, callback, detail);
+                }
+                promise._subscribers = null;
+            }
+            Promise.prototype = {
+                constructor: Promise,
+                _id: undefined,
+                _guidKey: guidKey,
+                _label: undefined,
+                _state: undefined,
+                _detail: undefined,
+                _subscribers: undefined,
+                _onerror: function(reason) {
+                    config.trigger("error", reason);
+                },
+                then: function(onFulfillment, onRejection, label) {
+                    var promise = this;
+                    this._onerror = null;
+                    var thenPromise = new this.constructor(noop, label);
+                    if (this._state) {
+                        var callbacks = arguments;
+                        config.async(function invokePromiseCallback() {
+                            invokeCallback(promise._state, thenPromise, callbacks[promise._state - 1], promise._detail);
+                        });
+                    } else {
+                        subscribe(this, thenPromise, onFulfillment, onRejection);
+                    }
+                    if (config.instrument) {
+                        instrument("chained", promise, thenPromise);
+                    }
+                    return thenPromise;
+                },
+                "catch": function(onRejection, label) {
+                    return this.then(null, onRejection, label);
+                },
+                "finally": function(callback, label) {
+                    var constructor = this.constructor;
+                    return this.then(function(value) {
+                        return constructor.cast(callback()).then(function() {
+                            return value;
+                        });
+                    }, function(reason) {
+                        return constructor.cast(callback()).then(function() {
+                            throw reason;
+                        });
+                    }, label);
+                }
+            };
+            function invokeCallback(settled, promise, callback, detail) {
                 var hasCallback = isFunction(callback), value, error, succeeded, failed;
                 if (hasCallback) {
                     try {
-                        value = callback(event.detail);
+                        value = callback(detail);
                         succeeded = true;
                     } catch (e) {
                         failed = true;
                         error = e;
                     }
                 } else {
-                    value = event.detail;
+                    value = detail;
                     succeeded = true;
                 }
                 if (handleThenable(promise, value)) {
@@ -12052,53 +12205,10 @@ var Handlebars = function() {
                     resolve(promise, value);
                 } else if (failed) {
                     reject(promise, error);
-                } else if (type === "resolve") {
+                } else if (settled === FULFILLED) {
                     resolve(promise, value);
-                } else if (type === "reject") {
+                } else if (settled === REJECTED) {
                     reject(promise, value);
-                }
-            };
-            Promise.prototype = {
-                constructor: Promise,
-                isRejected: undefined,
-                isFulfilled: undefined,
-                rejectedReason: undefined,
-                fulfillmentValue: undefined,
-                then: function(done, fail) {
-                    this.off("error", onerror);
-                    var thenPromise = new this.constructor(function() {});
-                    if (this.isFulfilled) {
-                        config.async(function(promise) {
-                            invokeCallback("resolve", thenPromise, done, {
-                                detail: promise.fulfillmentValue
-                            });
-                        }, this);
-                    }
-                    if (this.isRejected) {
-                        config.async(function(promise) {
-                            invokeCallback("reject", thenPromise, fail, {
-                                detail: promise.rejectedReason
-                            });
-                        }, this);
-                    }
-                    this.on("promise:resolved", function(event) {
-                        invokeCallback("resolve", thenPromise, done, event);
-                    });
-                    this.on("promise:failed", function(event) {
-                        invokeCallback("reject", thenPromise, fail, event);
-                    });
-                    return thenPromise;
-                },
-                fail: function(fail) {
-                    return this.then(null, fail);
-                }
-            };
-            EventTarget.mixin(Promise.prototype);
-            function resolve(promise, value) {
-                if (promise === value) {
-                    fulfill(promise, value);
-                } else if (!handleThenable(promise, value)) {
-                    fulfill(promise, value);
                 }
             }
             function handleThenable(promise, value) {
@@ -12126,92 +12236,275 @@ var Handlebars = function() {
                                 }
                                 resolved = true;
                                 reject(promise, val);
-                            });
+                            }, "derived from: " + (promise._label || " unknown promise"));
                             return true;
                         }
                     }
                 } catch (error) {
+                    if (resolved) {
+                        return true;
+                    }
                     reject(promise, error);
                     return true;
                 }
                 return false;
             }
+            function resolve(promise, value) {
+                if (promise === value) {
+                    fulfill(promise, value);
+                } else if (!handleThenable(promise, value)) {
+                    fulfill(promise, value);
+                }
+            }
             function fulfill(promise, value) {
-                config.async(function() {
-                    promise.trigger("promise:resolved", {
-                        detail: value
-                    });
-                    promise.isFulfilled = true;
-                    promise.fulfillmentValue = value;
-                });
+                if (promise._state !== PENDING) {
+                    return;
+                }
+                promise._state = SEALED;
+                promise._detail = value;
+                config.async(publishFulfillment, promise);
             }
-            function reject(promise, value) {
-                config.async(function() {
-                    promise.trigger("promise:failed", {
-                        detail: value
-                    });
-                    promise.isRejected = true;
-                    promise.rejectedReason = value;
-                });
+            function reject(promise, reason) {
+                if (promise._state !== PENDING) {
+                    return;
+                }
+                promise._state = SEALED;
+                promise._detail = reason;
+                config.async(publishRejection, promise);
             }
-            __exports__.Promise = Promise;
+            function publishFulfillment(promise) {
+                publish(promise, promise._state = FULFILLED);
+            }
+            function publishRejection(promise) {
+                if (promise._onerror) {
+                    promise._onerror(promise._detail);
+                }
+                publish(promise, promise._state = REJECTED);
+            }
         });
-        define("rsvp/reject", [ "rsvp/promise", "exports" ], function(__dependency1__, __exports__) {
+        define("rsvp/promise/all", [ "../utils", "exports" ], function(__dependency1__, __exports__) {
             "use strict";
-            var Promise = __dependency1__.Promise;
-            function reject(reason) {
-                return new Promise(function(resolve, reject) {
+            var isArray = __dependency1__.isArray;
+            var isNonThenable = __dependency1__.isNonThenable;
+            __exports__["default"] = function all(entries, label) {
+                var Constructor = this;
+                return new Constructor(function(resolve, reject) {
+                    if (!isArray(entries)) {
+                        throw new TypeError("You must pass an array to all.");
+                    }
+                    var remaining = entries.length;
+                    var results = new Array(remaining);
+                    var entry, pending = true;
+                    if (remaining === 0) {
+                        resolve(results);
+                        return;
+                    }
+                    function fulfillmentAt(index) {
+                        return function(value) {
+                            results[index] = value;
+                            if (--remaining === 0) {
+                                resolve(results);
+                            }
+                        };
+                    }
+                    function onRejection(reason) {
+                        remaining = 0;
+                        reject(reason);
+                    }
+                    for (var index = 0; index < entries.length; index++) {
+                        entry = entries[index];
+                        if (isNonThenable(entry)) {
+                            results[index] = entry;
+                            if (--remaining === 0) {
+                                resolve(results);
+                            }
+                        } else {
+                            Constructor.cast(entry).then(fulfillmentAt(index), onRejection);
+                        }
+                    }
+                }, label);
+            };
+        });
+        define("rsvp/promise/cast", [ "exports" ], function(__exports__) {
+            "use strict";
+            __exports__["default"] = function cast(object, label) {
+                var Constructor = this;
+                if (object && typeof object === "object" && object.constructor === Constructor) {
+                    return object;
+                }
+                return new Constructor(function(resolve) {
+                    resolve(object);
+                }, label);
+            };
+        });
+        define("rsvp/promise/race", [ "../utils", "exports" ], function(__dependency1__, __exports__) {
+            "use strict";
+            var isArray = __dependency1__.isArray;
+            var isFunction = __dependency1__.isFunction;
+            var isNonThenable = __dependency1__.isNonThenable;
+            __exports__["default"] = function race(entries, label) {
+                var Constructor = this, entry;
+                return new Constructor(function(resolve, reject) {
+                    if (!isArray(entries)) {
+                        throw new TypeError("You must pass an array to race.");
+                    }
+                    var pending = true;
+                    function onFulfillment(value) {
+                        if (pending) {
+                            pending = false;
+                            resolve(value);
+                        }
+                    }
+                    function onRejection(reason) {
+                        if (pending) {
+                            pending = false;
+                            reject(reason);
+                        }
+                    }
+                    for (var i = 0; i < entries.length; i++) {
+                        entry = entries[i];
+                        if (isNonThenable(entry)) {
+                            pending = false;
+                            resolve(entry);
+                            return;
+                        } else {
+                            Constructor.cast(entry).then(onFulfillment, onRejection);
+                        }
+                    }
+                }, label);
+            };
+        });
+        define("rsvp/promise/reject", [ "exports" ], function(__exports__) {
+            "use strict";
+            __exports__["default"] = function reject(reason, label) {
+                var Constructor = this;
+                return new Constructor(function(resolve, reject) {
                     reject(reason);
-                });
-            }
-            __exports__.reject = reject;
+                }, label);
+            };
         });
-        define("rsvp/resolve", [ "rsvp/promise", "exports" ], function(__dependency1__, __exports__) {
+        define("rsvp/promise/resolve", [ "exports" ], function(__exports__) {
             "use strict";
-            var Promise = __dependency1__.Promise;
-            function resolve(thenable) {
-                return new Promise(function(resolve, reject) {
-                    resolve(thenable);
-                });
-            }
-            __exports__.resolve = resolve;
+            __exports__["default"] = function resolve(value, label) {
+                var Constructor = this;
+                return new Constructor(function(resolve, reject) {
+                    resolve(value);
+                }, label);
+            };
+        });
+        define("rsvp/race", [ "./promise", "exports" ], function(__dependency1__, __exports__) {
+            "use strict";
+            var Promise = __dependency1__["default"];
+            __exports__["default"] = function race(array, label) {
+                return Promise.race(array, label);
+            };
+        });
+        define("rsvp/reject", [ "./promise", "exports" ], function(__dependency1__, __exports__) {
+            "use strict";
+            var Promise = __dependency1__["default"];
+            __exports__["default"] = function reject(reason, label) {
+                return Promise.reject(reason, label);
+            };
+        });
+        define("rsvp/resolve", [ "./promise", "exports" ], function(__dependency1__, __exports__) {
+            "use strict";
+            var Promise = __dependency1__["default"];
+            __exports__["default"] = function resolve(value, label) {
+                return Promise.resolve(value, label);
+            };
         });
         define("rsvp/rethrow", [ "exports" ], function(__exports__) {
             "use strict";
-            var local = typeof global === "undefined" ? this : global;
-            function rethrow(reason) {
-                local.setTimeout(function() {
+            __exports__["default"] = function rethrow(reason) {
+                setTimeout(function() {
                     throw reason;
                 });
                 throw reason;
-            }
-            __exports__.rethrow = rethrow;
+            };
         });
-        define("rsvp", [ "rsvp/events", "rsvp/promise", "rsvp/node", "rsvp/all", "rsvp/hash", "rsvp/rethrow", "rsvp/defer", "rsvp/config", "rsvp/resolve", "rsvp/reject", "exports" ], function(__dependency1__, __dependency2__, __dependency3__, __dependency4__, __dependency5__, __dependency6__, __dependency7__, __dependency8__, __dependency9__, __dependency10__, __exports__) {
+        define("rsvp/utils", [ "exports" ], function(__exports__) {
             "use strict";
-            var EventTarget = __dependency1__.EventTarget;
-            var Promise = __dependency2__.Promise;
-            var denodeify = __dependency3__.denodeify;
-            var all = __dependency4__.all;
-            var hash = __dependency5__.hash;
-            var rethrow = __dependency6__.rethrow;
-            var defer = __dependency7__.defer;
-            var config = __dependency8__.config;
-            var resolve = __dependency9__.resolve;
-            var reject = __dependency10__.reject;
-            function configure(name, value) {
-                config[name] = value;
+            function objectOrFunction(x) {
+                return typeof x === "function" || typeof x === "object" && x !== null;
+            }
+            __exports__.objectOrFunction = objectOrFunction;
+            function isFunction(x) {
+                return typeof x === "function";
+            }
+            __exports__.isFunction = isFunction;
+            function isNonThenable(x) {
+                return !objectOrFunction(x);
+            }
+            __exports__.isNonThenable = isNonThenable;
+            function isArray(x) {
+                return Object.prototype.toString.call(x) === "[object Array]";
+            }
+            __exports__.isArray = isArray;
+            var now = Date.now || function() {
+                return new Date().getTime();
+            };
+            __exports__.now = now;
+            var keysOf = Object.keys || function(object) {
+                var result = [];
+                for (var prop in object) {
+                    result.push(prop);
+                }
+                return result;
+            };
+            __exports__.keysOf = keysOf;
+        });
+        define("rsvp", [ "./rsvp/promise", "./rsvp/events", "./rsvp/node", "./rsvp/all", "./rsvp/all_settled", "./rsvp/race", "./rsvp/hash", "./rsvp/rethrow", "./rsvp/defer", "./rsvp/config", "./rsvp/map", "./rsvp/resolve", "./rsvp/reject", "./rsvp/filter", "exports" ], function(__dependency1__, __dependency2__, __dependency3__, __dependency4__, __dependency5__, __dependency6__, __dependency7__, __dependency8__, __dependency9__, __dependency10__, __dependency11__, __dependency12__, __dependency13__, __dependency14__, __exports__) {
+            "use strict";
+            var Promise = __dependency1__["default"];
+            var EventTarget = __dependency2__["default"];
+            var denodeify = __dependency3__["default"];
+            var all = __dependency4__["default"];
+            var allSettled = __dependency5__["default"];
+            var race = __dependency6__["default"];
+            var hash = __dependency7__["default"];
+            var rethrow = __dependency8__["default"];
+            var defer = __dependency9__["default"];
+            var config = __dependency10__.config;
+            var configure = __dependency10__.configure;
+            var map = __dependency11__["default"];
+            var resolve = __dependency12__["default"];
+            var reject = __dependency13__["default"];
+            var filter = __dependency14__["default"];
+            function async(callback, arg) {
+                config.async(callback, arg);
+            }
+            function on() {
+                config.on.apply(config, arguments);
+            }
+            function off() {
+                config.off.apply(config, arguments);
+            }
+            if (typeof window !== "undefined" && typeof window.__PROMISE_INSTRUMENTATION__ === "object") {
+                var callbacks = window.__PROMISE_INSTRUMENTATION__;
+                configure("instrument", true);
+                for (var eventName in callbacks) {
+                    if (callbacks.hasOwnProperty(eventName)) {
+                        on(eventName, callbacks[eventName]);
+                    }
+                }
             }
             __exports__.Promise = Promise;
             __exports__.EventTarget = EventTarget;
             __exports__.all = all;
+            __exports__.allSettled = allSettled;
+            __exports__.race = race;
             __exports__.hash = hash;
             __exports__.rethrow = rethrow;
             __exports__.defer = defer;
             __exports__.denodeify = denodeify;
             __exports__.configure = configure;
+            __exports__.on = on;
+            __exports__.off = off;
             __exports__.resolve = resolve;
             __exports__.reject = reject;
+            __exports__.async = async;
+            __exports__.map = map;
+            __exports__.filter = filter;
         });
     })();
     (function() {
@@ -12345,7 +12638,7 @@ var Handlebars = function() {
                     if (this.cache.has(fullName)) {
                         return true;
                     }
-                    return !!factoryFor(this, fullName);
+                    return !!this.resolve(fullName);
                 },
                 optionsForType: function(type, options) {
                     if (this.parent) {
@@ -12387,7 +12680,6 @@ var Handlebars = function() {
                     addInjection(this.factoryInjections, factoryName, property, injectionName);
                 },
                 destroy: function() {
-                    this.isDestroyed = true;
                     for (var i = 0, l = this.children.length; i < l; i++) {
                         this.children[i].destroy();
                     }
@@ -12914,8 +13206,10 @@ var Handlebars = function() {
                     for (var i = 0, l = props.length; i < l; i++) {
                         var properties = props[i];
                         Ember.assert("Ember.Object.create no longer supports mixing in other definitions, use createWithMixins instead.", !(properties instanceof Ember.Mixin));
-                        if (properties === null || typeof properties !== "object") {
-                            Ember.assert("Ember.Object.create only accepts objects.");
+                        if (typeof properties !== "object" && properties !== undefined) {
+                            throw new Ember.Error("Ember.Object.create only accepts objects.");
+                        }
+                        if (!properties) {
                             continue;
                         }
                         var keyNames = Ember.keys(properties);
@@ -12937,7 +13231,7 @@ var Handlebars = function() {
                             var desc = m.descs[keyName];
                             Ember.assert("Ember.Object.create no longer supports defining computed properties.", !(value instanceof Ember.ComputedProperty));
                             Ember.assert("Ember.Object.create no longer supports defining methods that call _super.", !(typeof value === "function" && value.toString().indexOf("._super") !== -1));
-                            Ember.assert("`actions` must be provided at extend time, not at create time, when Ember.ActionHandler is used (i.e. views, controllers & routes).", !(keyName === "actions" && Ember.ActionHandler.detect(this)));
+                            Ember.assert("`actions` must be provided at extend time, not at create " + "time, when Ember.ActionHandler is used (i.e. views, " + "controllers & routes).", !(keyName === "actions" && Ember.ActionHandler.detect(this)));
                             if (concatenatedProperties && indexOf(concatenatedProperties, keyName) >= 0) {
                                 var baseValue = this[keyName];
                                 if (baseValue) {
@@ -13462,10 +13756,11 @@ var Handlebars = function() {
                     return !callback.call(target, x, idx, i);
                 });
             },
-            everyBy: function(key, value) {
+            everyBy: Ember.aliasMethod("isEvery"),
+            everyProperty: Ember.aliasMethod("isEvery"),
+            isEvery: function(key, value) {
                 return this.every(iter.apply(this, arguments));
             },
-            everyProperty: Ember.aliasMethod("everyBy"),
             any: function(callback, target) {
                 var found = this.find(function(x, idx, i) {
                     return !!callback.call(target, x, idx, i);
@@ -13473,10 +13768,11 @@ var Handlebars = function() {
                 return typeof found !== "undefined";
             },
             some: Ember.aliasMethod("any"),
-            anyBy: function(key, value) {
+            isAny: function(key, value) {
                 return this.any(iter.apply(this, arguments));
             },
-            someProperty: Ember.aliasMethod("anyBy"),
+            anyBy: Ember.aliasMethod("isAny"),
+            someProperty: Ember.aliasMethod("isAny"),
             reduce: function(callback, initialValue, reducerProperty) {
                 if (typeof callback !== "function") {
                     throw new TypeError();
@@ -13572,9 +13868,7 @@ var Handlebars = function() {
                 if (hasDelta) Ember.propertyDidChange(this, "length");
                 Ember.propertyDidChange(this, "[]");
                 return this;
-            }
-        });
-        Ember.Enumerable.reopen({
+            },
             sortBy: function() {
                 var sortKeys = arguments;
                 return this.toArray().sort(function(a, b) {
@@ -13730,7 +14024,7 @@ var Handlebars = function() {
         });
     })();
     (function() {
-        var e_get = Ember.get, set = Ember.set, guidFor = Ember.guidFor, metaFor = Ember.meta, propertyWillChange = Ember.propertyWillChange, propertyDidChange = Ember.propertyDidChange, addBeforeObserver = Ember.addBeforeObserver, removeBeforeObserver = Ember.removeBeforeObserver, addObserver = Ember.addObserver, removeObserver = Ember.removeObserver, ComputedProperty = Ember.ComputedProperty, a_slice = [].slice, o_create = Ember.create, forEach = Ember.EnumerableUtils.forEach, eachPropertyPattern = /^(.*)\.@each\.(.*)/, doubleEachPropertyPattern = /(.*\.@each){2,}/;
+        var e_get = Ember.get, set = Ember.set, guidFor = Ember.guidFor, metaFor = Ember.meta, propertyWillChange = Ember.propertyWillChange, propertyDidChange = Ember.propertyDidChange, addBeforeObserver = Ember.addBeforeObserver, removeBeforeObserver = Ember.removeBeforeObserver, addObserver = Ember.addObserver, removeObserver = Ember.removeObserver, ComputedProperty = Ember.ComputedProperty, a_slice = [].slice, o_create = Ember.create, forEach = Ember.EnumerableUtils.forEach, eachPropertyPattern = /^(.*)\.@each\.(.*)/, doubleEachPropertyPattern = /(.*\.@each){2,}/, arrayBracketPattern = /\.\[\]$/;
         function get(obj, key) {
             if (key === "@this") {
                 return obj;
@@ -13981,6 +14275,13 @@ var Handlebars = function() {
                 }, meta.sugarMeta);
             }
         }
+        function partiallyRecomputeFor(obj, dependentKey) {
+            if (arrayBracketPattern.test(dependentKey)) {
+                return false;
+            }
+            var value = get(obj, dependentKey);
+            return Ember.Array.detect(value);
+        }
         function ReduceComputedPropertyInstanceMeta(context, propertyName, initialValue) {
             this.context = context;
             this.propertyName = propertyName;
@@ -14029,6 +14330,9 @@ var Handlebars = function() {
                 reset.call(this, cp, propertyName);
                 meta.dependentArraysObserver.suspendArrayObservers(function() {
                     forEach(cp._dependentKeys, function(dependentKey) {
+                        if (!partiallyRecomputeFor(this, dependentKey)) {
+                            return;
+                        }
                         var dependentArray = get(this, dependentKey), previousDependentArray = meta.dependentArrays[dependentKey];
                         if (dependentArray === previousDependentArray) {
                             if (cp._previousItemPropertyKeys[dependentKey]) {
@@ -14047,6 +14351,9 @@ var Handlebars = function() {
                     }, this);
                 }, this);
                 forEach(cp._dependentKeys, function(dependentKey) {
+                    if (!partiallyRecomputeFor(this, dependentKey)) {
+                        return;
+                    }
                     var dependentArray = get(this, dependentKey);
                     if (dependentArray) {
                         addItems.call(this, dependentArray, callbacks, cp, propertyName, meta);
@@ -14168,6 +14475,9 @@ var Handlebars = function() {
         ArrayComputedProperty.prototype.resetValue = function(array) {
             array.clear();
             return array;
+        };
+        ArrayComputedProperty.prototype.didChange = function(obj, keyName) {
+            return;
         };
         Ember.arrayComputed = function(options) {
             var args;
@@ -14483,6 +14793,21 @@ var Handlebars = function() {
     })();
     (function() {
         Ember.RSVP = requireModule("rsvp");
+        Ember.RSVP.onerrorDefault = function(error) {
+            if (error instanceof Error) {
+                if (Ember.testing) {
+                    if (Ember.Test && Ember.Test.adapter) {
+                        Ember.Test.adapter.exception(error);
+                    } else {
+                        throw error;
+                    }
+                } else {
+                    Ember.Logger.error(error.stack);
+                    Ember.assert(error, false);
+                }
+            }
+        };
+        Ember.RSVP.on("error", Ember.RSVP.onerrorDefault);
     })();
     (function() {
         var a_slice = Array.prototype.slice;
@@ -14747,9 +15072,13 @@ var Handlebars = function() {
         RSVP.configure("async", function(callback, promise) {
             Ember.run.schedule("actions", promise, callback, promise);
         });
+        RSVP.Promise.prototype.fail = function(callback, label) {
+            Ember.deprecate("RSVP.Promise.fail has been renamed as RSVP.Promise.catch");
+            return this["catch"](callback, label);
+        };
         var get = Ember.get;
         Ember.DeferredMixin = Ember.Mixin.create({
-            then: function(resolve, reject) {
+            then: function(resolve, reject, label) {
                 var deferred, promise, entity;
                 entity = this;
                 deferred = get(this, "_deferred");
@@ -14761,7 +15090,7 @@ var Handlebars = function() {
                         return resolve(fulfillment);
                     }
                 }
-                return promise.then(resolve && fulfillmentHandler, reject);
+                return promise.then(resolve && fulfillmentHandler, reject, label);
             },
             resolve: function(value) {
                 var deferred, promise;
@@ -14777,7 +15106,7 @@ var Handlebars = function() {
                 get(this, "_deferred").reject(value);
             },
             _deferred: Ember.computed(function() {
-                return RSVP.defer();
+                return RSVP.defer("Ember: DeferredMixin - " + this);
             })
         });
     })();
@@ -14827,7 +15156,7 @@ var Handlebars = function() {
             }, function(reason) {
                 set(proxy, "isRejected", true);
                 set(proxy, "reason", reason);
-            });
+            }, "Ember: PromiseProxy");
         }
         Ember.PromiseProxyMixin = Ember.Mixin.create({
             reason: null,
@@ -14844,10 +15173,16 @@ var Handlebars = function() {
                     throw new Ember.Error("PromiseProxy's promise must be set");
                 }
             }),
-            then: function(fulfill, reject) {
-                return get(this, "promise").then(fulfill, reject);
-            }
+            then: promiseAlias("then"),
+            "catch": promiseAlias("catch"),
+            "finally": promiseAlias("finally")
         });
+        function promiseAlias(name) {
+            return function() {
+                var promise = get(this, "promise");
+                return promise[name].apply(promise, arguments);
+            };
+        }
     })();
     (function() {})();
     (function() {
@@ -16330,7 +16665,7 @@ var Handlebars = function() {
             setupHandler: function(rootElement, event, eventName) {
                 var self = this;
                 rootElement.on(event + ".ember", ".ember-view", function(evt, triggeringManager) {
-                    return Ember.handleErrors(function() {
+                    return Ember.handleErrors(function handleViewEvent() {
                         var view = Ember.View.views[this.id], result = true, manager = null;
                         manager = self._findNearestEventManager(view, eventName);
                         if (manager && manager !== triggeringManager) {
@@ -16344,7 +16679,7 @@ var Handlebars = function() {
                     }, this);
                 });
                 rootElement.on(event + ".ember", "[data-ember-action]", function(evt) {
-                    return Ember.handleErrors(function() {
+                    return Ember.handleErrors(function handleActionEvent() {
                         var actionId = Ember.$(evt.currentTarget).attr("data-ember-action"), action = Ember.Handlebars.ActionHelper.registeredActions[actionId];
                         if (action && action.eventName === eventName) {
                             return action.handler(evt);
@@ -16377,7 +16712,7 @@ var Handlebars = function() {
                 return result;
             },
             _bubbleEvent: function(view, evt, eventName) {
-                return Ember.run(function() {
+                return Ember.run(function bubbleEvent() {
                     return view.handleEvent(eventName, evt);
                 });
             },
@@ -16478,7 +16813,7 @@ var Handlebars = function() {
             renderToBuffer: function(parentBuffer, bufferOperation) {
                 var name = "render." + this.instrumentName, details = {};
                 this.instrumentDetails(details);
-                return Ember.instrument(name, details, function() {
+                return Ember.instrument(name, details, function instrumentRenderToBuffer() {
                     return this._renderToBuffer(parentBuffer, bufferOperation);
                 }, this);
             },
@@ -17289,6 +17624,9 @@ var Handlebars = function() {
                 if (Ember.isNone(value)) {
                     value = "";
                 }
+                if (!value) {
+                    elem.removeAttr(name);
+                }
                 if (value !== elem.prop(name)) {
                     elem.prop(name, value);
                 }
@@ -17386,7 +17724,7 @@ var Handlebars = function() {
                 return view;
             },
             empty: function() {
-                Ember.assert("Emptying a view in the inBuffer state is not allowed and should not happen under normal circumstances. Most likely there is a bug in your application. This may be due to excessive property change notifications.");
+                Ember.assert("Emptying a view in the inBuffer state is not allowed and " + "should not happen under normal circumstances. Most likely " + "there is a bug in your application. This may be due to " + "excessive property change notifications.");
             },
             renderToBufferIfNeeded: function(view, buffer) {
                 return false;
@@ -17830,6 +18168,12 @@ var Handlebars = function() {
                 set(this, "context", this);
                 set(this, "controller", this);
             },
+            defaultLayout: function(options) {
+                options.data = {
+                    view: options._context
+                };
+                Ember.Handlebars.helpers["yield"].apply(this, [ options ]);
+            },
             cloneKeywords: function() {
                 return {
                     view: this,
@@ -17888,7 +18232,15 @@ var Handlebars = function() {
     (function() {
         define("metamorph", [], function() {
             "use strict";
-            var K = function() {}, guid = 0, document = this.document, disableRange = ("undefined" === typeof ENV ? {} : ENV).DISABLE_RANGE_API, supportsRange = !disableRange && document && "createRange" in document && typeof Range !== "undefined" && Range.prototype.createContextualFragment, needsShy = document && function() {
+            var K = function() {}, guid = 0, disableRange = function() {
+                if ("undefined" !== typeof MetamorphENV) {
+                    return MetamorphENV.DISABLE_RANGE_API;
+                } else if ("undefined" !== ENV) {
+                    return ENV.DISABLE_RANGE_API;
+                } else {
+                    return false;
+                }
+            }(), supportsRange = !disableRange && document && "createRange" in document && typeof Range !== "undefined" && Range.prototype.createContextualFragment, needsShy = document && function() {
                 var testEl = document.createElement("div");
                 testEl.innerHTML = "<div></div>";
                 testEl.firstChild.innerHTML = "<script></script>";
@@ -18067,6 +18419,9 @@ var Handlebars = function() {
                         node = nextSibling;
                     }
                     node = firstNodeFor(start.parentNode, html);
+                    if (outerToo) {
+                        start.parentNode.removeChild(start);
+                    }
                     while (node) {
                         nextSibling = node.nextSibling;
                         parentNode.insertBefore(node, end);
@@ -18154,12 +18509,12 @@ var Handlebars = function() {
             F.prototype = parent;
             return new F();
         };
-        var Handlebars = this.Handlebars || Ember.imports && Ember.imports.Handlebars;
+        var Handlebars = Ember.imports && Ember.imports.Handlebars || this && this.Handlebars;
         if (!Handlebars && typeof require === "function") {
             Handlebars = require("handlebars");
         }
-        Ember.assert("Ember Handlebars requires Handlebars version 1.0 or 1.1. Include a SCRIPT tag in the HTML HEAD linking to the Handlebars file before you link to Ember.", Handlebars);
-        Ember.assert("Ember Handlebars requires Handlebars version 1.0 or 1.1, COMPILER_REVISION expected: 4, got: " + Handlebars.COMPILER_REVISION + " - Please note: Builds of master may have other COMPILER_REVISION values.", Handlebars.COMPILER_REVISION === 4);
+        Ember.assert("Ember Handlebars requires Handlebars version 1.0 or 1.1. Include " + "a SCRIPT tag in the HTML HEAD linking to the Handlebars file " + "before you link to Ember.", Handlebars);
+        Ember.assert("Ember Handlebars requires Handlebars version 1.0 or 1.1, " + "COMPILER_REVISION expected: 4, got: " + Handlebars.COMPILER_REVISION + " - Please note: Builds of master may have other COMPILER_REVISION values.", Handlebars.COMPILER_REVISION === 4);
         Ember.Handlebars = objectCreate(Handlebars);
         Ember.Handlebars.helper = function(name, value) {
             Ember.assert("You tried to register a component named '" + name + "', but component names must include a '-'", !Ember.Component.detect(value) || name.match(/-/));
@@ -18171,7 +18526,7 @@ var Handlebars = function() {
         };
         Ember.Handlebars.makeViewHelper = function(ViewClass) {
             return function(options) {
-                Ember.assert("You can only pass attributes (such as name=value) not bare values to a helper for a View", arguments.length < 2);
+                Ember.assert("You can only pass attributes (such as name=value) not bare values to a helper for a View found in '" + ViewClass.toString() + "'", arguments.length < 2);
                 return Ember.Handlebars.helpers.view.call(this, ViewClass, options);
             };
         };
@@ -18232,7 +18587,7 @@ var Handlebars = function() {
                 knownHelpers: {
                     action: true,
                     unbound: true,
-                    bindAttr: true,
+                    "bind-attr": true,
                     template: true,
                     view: true,
                     _triageMustache: true
@@ -18331,10 +18686,12 @@ var Handlebars = function() {
         });
         Ember.Handlebars.registerHelper("blockHelperMissing", function(path) {
             var options = arguments[arguments.length - 1];
-            Ember.assert("`blockHelperMissing` was invoked without a helper name, which is most likely due to a mismatch between the version of Ember.js you're running now and the one used to precompile your templates. Please make sure the version of `ember-handlebars-compiler` you're using is up to date.", path);
+            Ember.assert("`blockHelperMissing` was invoked without a helper name, which " + "is most likely due to a mismatch between the version of " + "Ember.js you're running now and the one used to precompile your " + "templates. Please make sure the version of " + "`ember-handlebars-compiler` you're using is up to date.", path);
             var helper = Ember.Handlebars.resolveHelper(options.data.view.container, path);
             if (helper) {
                 return helper.apply(this, slice.call(arguments, 1));
+            } else {
+                return Handlebars.helpers.helperMissing.call(this, path);
             }
             return Handlebars.helpers.blockHelperMissing.apply(this, arguments);
         });
@@ -18345,7 +18702,7 @@ var Handlebars = function() {
         Ember.Handlebars.makeBoundHelper = function(fn) {
             var dependentKeys = slice.call(arguments, 1);
             function helper() {
-                var properties = slice.call(arguments, 0, -1), numProperties = properties.length, options = arguments[arguments.length - 1], normalizedProperties = [], types = options.types, data = options.data, hash = options.hash, view = data.view, contexts = options.contexts, currentContext = contexts && contexts.length ? contexts[0] : this, prefixPathForDependentKeys = "", loc, len, hashOption, boundOption, property, normalizedValue = Ember._SimpleHandlebarsView.prototype.normalizedValue;
+                var properties = slice.call(arguments, 0, -1), numProperties = properties.length, options = arguments[arguments.length - 1], normalizedProperties = [], data = options.data, types = data.isUnbound ? slice.call(options.types, 1) : options.types, hash = options.hash, view = data.view, contexts = options.contexts, currentContext = contexts && contexts.length ? contexts[0] : this, prefixPathForDependentKeys = "", loc, len, hashOption, boundOption, property, normalizedValue = Ember._SimpleHandlebarsView.prototype.normalizedValue;
                 Ember.assert("registerBoundHelper-generated helpers do not support use with Handlebars blocks.", !options.fn);
                 var boundOptions = hash.boundOptions = {};
                 for (hashOption in hash) {
@@ -18362,7 +18719,13 @@ var Handlebars = function() {
                         normalizedProperties.push(normalizedProp);
                         watchedProperties.push(normalizedProp);
                     } else {
-                        normalizedProperties.push(null);
+                        if (data.isUnbound) {
+                            normalizedProperties.push({
+                                path: properties[loc]
+                            });
+                        } else {
+                            normalizedProperties.push(null);
+                        }
                     }
                 }
                 if (data.isUnbound) {
@@ -18418,7 +18781,7 @@ var Handlebars = function() {
             return helper;
         };
         function evaluateUnboundHelper(context, fn, normalizedProperties, options) {
-            var args = [], hash = options.hash, boundOptions = hash.boundOptions, loc, len, property, boundOption;
+            var args = [], hash = options.hash, boundOptions = hash.boundOptions, types = slice.call(options.types, 1), loc, len, property, propertyType, boundOption;
             for (boundOption in boundOptions) {
                 if (!boundOptions.hasOwnProperty(boundOption)) {
                     continue;
@@ -18427,7 +18790,12 @@ var Handlebars = function() {
             }
             for (loc = 0, len = normalizedProperties.length; loc < len; ++loc) {
                 property = normalizedProperties[loc];
-                args.push(Ember.Handlebars.get(property.root, property.path, options));
+                propertyType = types[loc];
+                if (propertyType === "ID") {
+                    args.push(Ember.Handlebars.get(property.root, property.path, options));
+                } else {
+                    args.push(property.path);
+                }
             }
             args.push(options);
             return fn.apply(context, args);
@@ -18486,7 +18854,7 @@ var Handlebars = function() {
             replace: function(view) {
                 var morph = view.morph;
                 view.transitionTo("preRender");
-                Ember.run.schedule("render", this, function() {
+                Ember.run.schedule("render", this, function renderMetamorphView() {
                     if (view.isDestroying) {
                         return;
                     }
@@ -18706,9 +19074,22 @@ var Handlebars = function() {
         var get = Ember.get, set = Ember.set, fmt = Ember.String.fmt;
         var handlebarsGet = Ember.Handlebars.get, normalizePath = Ember.Handlebars.normalizePath;
         var forEach = Ember.ArrayPolyfills.forEach;
+        var o_create = Ember.create;
         var EmberHandlebars = Ember.Handlebars, helpers = EmberHandlebars.helpers;
         function exists(value) {
             return !Ember.isNone(value);
+        }
+        function sanitizedHandlebarsGet(currentContext, property, options) {
+            var result = handlebarsGet(currentContext, property, options);
+            if (result === null || result === undefined) {
+                result = "";
+            } else if (!(result instanceof Handlebars.SafeString)) {
+                result = String(result);
+            }
+            if (!options.hash.unescaped) {
+                result = Handlebars.Utils.escapeExpression(result);
+            }
+            return result;
         }
         function bind(property, options, preserveContext, shouldDisplay, valueNormalizer, childProperties) {
             var data = options.data, fn = options.fn, inverse = options.inverse, view = data.view, currentContext = this, normalized, observer, i;
@@ -18769,11 +19150,8 @@ var Handlebars = function() {
                     observer = function() {
                         Ember.run.once(view, "rerender");
                     };
-                    var result = handlebarsGet(currentContext, property, options);
-                    if (result === null || result === undefined) {
-                        result = "";
-                    }
-                    data.buffer.push(result);
+                    output = sanitizedHandlebarsGet(currentContext, property, options);
+                    data.buffer.push(output);
                 } else {
                     var bindView = new Ember._SimpleHandlebarsView(property, currentContext, !options.hash.unescaped, options.data);
                     bindView._parentView = view;
@@ -18786,8 +19164,8 @@ var Handlebars = function() {
                     view.registerObserver(normalized.root, normalized.path, observer);
                 }
             } else {
-                output = handlebarsGet(currentContext, property, options);
-                data.buffer.push(output === null || typeof output === "undefined" ? "" : output);
+                output = sanitizedHandlebarsGet(currentContext, property, options);
+                data.buffer.push(output);
             }
         }
         EmberHandlebars.registerHelper("_triageMustache", function(property, options) {
@@ -18817,7 +19195,7 @@ var Handlebars = function() {
             }
             return helper;
         };
-        EmberHandlebars.registerHelper("bind", function(property, options) {
+        EmberHandlebars.registerHelper("bind", function bindHelper(property, options) {
             Ember.assert("You cannot pass more than one argument to the bind helper", arguments.length <= 2);
             var context = options.contexts && options.contexts.length ? options.contexts[0] : this;
             if (!options.fn) {
@@ -18825,7 +19203,7 @@ var Handlebars = function() {
             }
             return bind.call(context, property, options, false, exists);
         });
-        EmberHandlebars.registerHelper("boundIf", function(property, fn) {
+        EmberHandlebars.registerHelper("boundIf", function boundIfHelper(property, fn) {
             var context = fn.contexts && fn.contexts.length ? fn.contexts[0] : this;
             var func = function(result) {
                 var truthy = result && get(result, "isTruthy");
@@ -18840,38 +19218,41 @@ var Handlebars = function() {
             };
             return bind.call(context, property, fn, true, func, func, [ "isTruthy", "length" ]);
         });
-        EmberHandlebars.registerHelper("with", function(context, options) {
+        EmberHandlebars.registerHelper("with", function withHelper(context, options) {
             if (arguments.length === 4) {
-                var keywordName, path, rootPath, normalized;
+                var keywordName, path, rootPath, normalized, contextPath;
                 Ember.assert("If you pass more than one argument to the with helper, it must be in the form #with foo as bar", arguments[1] === "as");
                 options = arguments[3];
                 keywordName = arguments[2];
                 path = arguments[0];
                 Ember.assert("You must pass a block to the with helper", options.fn && options.fn !== Handlebars.VM.noop);
+                var localizedOptions = o_create(options);
+                localizedOptions.data = o_create(options.data);
+                localizedOptions.data.keywords = o_create(options.data.keywords || {});
                 if (Ember.isGlobalPath(path)) {
-                    Ember.bind(options.data.keywords, keywordName, path);
+                    contextPath = path;
                 } else {
                     normalized = normalizePath(this, path, options.data);
                     path = normalized.path;
                     rootPath = normalized.root;
                     var contextKey = Ember.$.expando + Ember.guidFor(rootPath);
-                    options.data.keywords[contextKey] = rootPath;
-                    var contextPath = path ? contextKey + "." + path : contextKey;
-                    Ember.bind(options.data.keywords, keywordName, contextPath);
+                    localizedOptions.data.keywords[contextKey] = rootPath;
+                    contextPath = path ? contextKey + "." + path : contextKey;
                 }
-                return bind.call(this, path, options, true, exists);
+                Ember.bind(localizedOptions.data.keywords, keywordName, contextPath);
+                return bind.call(this, path, localizedOptions, true, exists);
             } else {
                 Ember.assert("You must pass exactly one argument to the with helper", arguments.length === 2);
                 Ember.assert("You must pass a block to the with helper", options.fn && options.fn !== Handlebars.VM.noop);
                 return helpers.bind.call(options.contexts[0], context, options);
             }
         });
-        EmberHandlebars.registerHelper("if", function(context, options) {
+        EmberHandlebars.registerHelper("if", function ifHelper(context, options) {
             Ember.assert("You must pass exactly one argument to the if helper", arguments.length === 2);
             Ember.assert("You must pass a block to the if helper", options.fn && options.fn !== Handlebars.VM.noop);
             return helpers.boundIf.call(options.contexts[0], context, options);
         });
-        EmberHandlebars.registerHelper("unless", function(context, options) {
+        EmberHandlebars.registerHelper("unless", function unlessHelper(context, options) {
             Ember.assert("You must pass exactly one argument to the unless helper", arguments.length === 2);
             Ember.assert("You must pass a block to the unless helper", options.fn && options.fn !== Handlebars.VM.noop);
             var fn = options.fn, inverse = options.inverse;
@@ -18879,7 +19260,7 @@ var Handlebars = function() {
             options.inverse = fn;
             return helpers.boundIf.call(options.contexts[0], context, options);
         });
-        EmberHandlebars.registerHelper("bind-attr", function(options) {
+        EmberHandlebars.registerHelper("bind-attr", function bindAttrHelper(options) {
             var attrs = options.hash;
             Ember.assert("You must specify at least one hash argument to bind-attr", !!Ember.keys(attrs).length);
             var view = options.data.view;
@@ -18922,7 +19303,10 @@ var Handlebars = function() {
             ret.push("data-bindattr-" + dataId + '="' + dataId + '"');
             return new EmberHandlebars.SafeString(ret.join(" "));
         });
-        EmberHandlebars.registerHelper("bindAttr", EmberHandlebars.helpers["bind-attr"]);
+        EmberHandlebars.registerHelper("bindAttr", function bindAttrHelper() {
+            Ember.warn("The 'bindAttr' view helper is deprecated in favor of 'bind-attr'");
+            return EmberHandlebars.helpers["bind-attr"].apply(this, arguments);
+        });
         EmberHandlebars.bindClasses = function(context, classBindings, view, bindAttrId, options) {
             var ret = [], newClass, value, elem;
             var classStringForPath = function(root, parsedPath, options) {
@@ -19071,7 +19455,7 @@ var Handlebars = function() {
                     return "templateData.keywords." + path;
                 } else if (Ember.isGlobalPath(path)) {
                     return null;
-                } else if (path === "this") {
+                } else if (path === "this" || path === "") {
                     return "_parentView.context";
                 } else {
                     return "_parentView.context." + path;
@@ -19106,7 +19490,7 @@ var Handlebars = function() {
                 currentView.appendChild(newView, viewOptions);
             }
         });
-        EmberHandlebars.registerHelper("view", function(path, options) {
+        EmberHandlebars.registerHelper("view", function viewHelper(path, options) {
             Ember.assert("The view helper only takes a single argument", arguments.length <= 2);
             if (path && path.data && path.data.isRenderData) {
                 options = path;
@@ -19117,7 +19501,7 @@ var Handlebars = function() {
     })();
     (function() {
         var get = Ember.get, handlebarsGet = Ember.Handlebars.get, fmt = Ember.String.fmt;
-        Ember.Handlebars.registerHelper("collection", function(path, options) {
+        Ember.Handlebars.registerHelper("collection", function collectionHelper(path, options) {
             Ember.deprecate("Using the {{collection}} helper without specifying a class has been deprecated as the {{each}} helper now supports the same functionality.", path !== "collection");
             if (path && path.data && path.data.isRenderData) {
                 options = path;
@@ -19137,10 +19521,10 @@ var Handlebars = function() {
             var collectionPrototype = collectionClass.proto(), itemViewClass;
             if (hash.itemView) {
                 var controller = data.keywords.controller;
-                Ember.assert('You specified an itemView, but the current context has no container to look the itemView up in. This probably means that you created a view manually, instead of through the container. Instead, use container.lookup("view:viewName"), which will properly instantiate your view.', controller && controller.container);
+                Ember.assert("You specified an itemView, but the current context has no " + "container to look the itemView up in. This probably means " + "that you created a view manually, instead of through the " + 'container. Instead, use container.lookup("view:viewName"), ' + "which will properly instantiate your view.", controller && controller.container);
                 var container = controller.container;
                 itemViewClass = container.resolve("view:" + hash.itemView);
-                Ember.assert("You specified the itemView " + hash.itemView + ", but it was not found at " + container.describe("view:" + hash.itemView) + " (and it was not registered in the container)", !!itemViewClass);
+                Ember.assert("You specified the itemView " + hash.itemView + ", but it was " + "not found at " + container.describe("view:" + hash.itemView) + " (and it was not registered in the container)", !!itemViewClass);
             } else if (hash.itemViewClass) {
                 itemViewClass = handlebarsGet(collectionPrototype, hash.itemViewClass, options);
             } else {
@@ -19163,7 +19547,7 @@ var Handlebars = function() {
                 delete options.fn;
             }
             var emptyViewClass;
-            if (inverse && inverse !== Handlebars.VM.noop) {
+            if (inverse && inverse !== Ember.Handlebars.VM.noop) {
                 emptyViewClass = get(collectionPrototype, "emptyViewClass");
                 emptyViewClass = emptyViewClass.extend({
                     template: inverse,
@@ -19188,11 +19572,11 @@ var Handlebars = function() {
     })();
     (function() {
         var handlebarsGet = Ember.Handlebars.get;
-        Ember.Handlebars.registerHelper("unbound", function(property, fn) {
+        Ember.Handlebars.registerHelper("unbound", function unboundHelper(property, fn) {
             var options = arguments[arguments.length - 1], helper, context, out;
             if (arguments.length > 2) {
                 options.data.isUnbound = true;
-                helper = Ember.Handlebars.helpers[arguments[0]] || Ember.Handlebars.helperMissing;
+                helper = Ember.Handlebars.helpers[arguments[0]] || Ember.Handlebars.helpers.helperMissing;
                 out = helper.apply(this, Array.prototype.slice.call(arguments, 1));
                 delete options.data.isUnbound;
                 return out;
@@ -19202,12 +19586,14 @@ var Handlebars = function() {
         });
     })();
     (function() {
-        var handlebarsGet = Ember.Handlebars.get, normalizePath = Ember.Handlebars.normalizePath;
-        Ember.Handlebars.registerHelper("log", function(property, options) {
+        var get = Ember.get, handlebarsGet = Ember.Handlebars.get, normalizePath = Ember.Handlebars.normalizePath;
+        Ember.Handlebars.registerHelper("log", function logHelper(property, options) {
             var context = options.contexts && options.contexts.length ? options.contexts[0] : this, normalized = normalizePath(context, property, options.data), pathRoot = normalized.root, path = normalized.path, value = path === "this" ? pathRoot : handlebarsGet(pathRoot, path, options);
             Ember.Logger.log(value);
         });
-        Ember.Handlebars.registerHelper("debugger", function(options) {
+        Ember.Handlebars.registerHelper("debugger", function debuggerHelper(options) {
+            var templateContext = this;
+            var typeOfTemplateContext = Ember.inspect(templateContext);
             debugger;
         });
     })();
@@ -19364,7 +19750,7 @@ var Handlebars = function() {
                 this.destroyed = true;
             }
         };
-        Ember.Handlebars.registerHelper("each", function(path, options) {
+        Ember.Handlebars.registerHelper("each", function eachHelper(path, options) {
             if (arguments.length === 4) {
                 Ember.assert("If you pass more than one argument to the each helper, it must be in the form #each foo in bar", arguments[1] === "in");
                 var keywordName = arguments[0];
@@ -19394,7 +19780,7 @@ var Handlebars = function() {
         });
     })();
     (function() {
-        Ember.Handlebars.registerHelper("partial", function(name, options) {
+        Ember.Handlebars.registerHelper("partial", function partialHelper(name, options) {
             var context = options.contexts && options.contexts.length ? options.contexts[0] : this;
             if (options.types[0] === "ID") {
                 options.fn = function(context, fnOptions) {
@@ -19422,7 +19808,7 @@ var Handlebars = function() {
     })();
     (function() {
         var get = Ember.get, set = Ember.set;
-        Ember.Handlebars.registerHelper("yield", function(options) {
+        Ember.Handlebars.registerHelper("yield", function yieldHelper(options) {
             var view = options.data.view;
             while (view && !get(view, "layout")) {
                 if (view._contextView) {
@@ -19436,7 +19822,7 @@ var Handlebars = function() {
         });
     })();
     (function() {
-        Ember.Handlebars.registerHelper("loc", function(str) {
+        Ember.Handlebars.registerHelper("loc", function locHelper(str) {
             return Ember.String.loc(str);
         });
     })();
@@ -19702,18 +20088,21 @@ var Handlebars = function() {
                 data = data || {};
                 var buffer = "", stack1, hashTypes, hashContexts, escapeExpression = this.escapeExpression, self = this;
                 function program1(depth0, data) {
-                    var buffer = "", hashTypes, hashContexts;
+                    var buffer = "", stack1, hashTypes, hashContexts;
                     data.buffer.push('<option value="">');
                     hashTypes = {};
                     hashContexts = {};
-                    data.buffer.push(escapeExpression(helpers._triageMustache.call(depth0, "view.prompt", {
+                    stack1 = helpers._triageMustache.call(depth0, "view.prompt", {
                         hash: {},
                         contexts: [ depth0 ],
                         types: [ "ID" ],
                         hashContexts: hashContexts,
                         hashTypes: hashTypes,
                         data: data
-                    })));
+                    });
+                    if (stack1 || stack1 === 0) {
+                        data.buffer.push(stack1);
+                    }
                     data.buffer.push("</option>");
                     return buffer;
                 }
@@ -20019,28 +20408,6 @@ var Handlebars = function() {
         };
         function bootstrap() {
             Ember.Handlebars.bootstrap(Ember.$(document));
-        }
-        function registerComponents(container) {
-            var templates = Ember.TEMPLATES, match;
-            if (!templates) {
-                return;
-            }
-            for (var prop in templates) {
-                if (match = prop.match(/^components\/(.*)$/)) {
-                    registerComponent(container, match[1]);
-                }
-            }
-        }
-        function registerComponent(container, name) {
-            Ember.assert("You provided a template named 'components/" + name + "', but custom components must include a '-'", name.match(/-/));
-            var fullName = "component:" + name;
-            container.injection(fullName, "layout", "template:components/" + name);
-            var Component = container.lookupFactory(fullName);
-            if (!Component) {
-                container.register(fullName, Ember.Component);
-                Component = container.lookupFactory(fullName);
-            }
-            Ember.Handlebars.helper(name, Component);
         }
         function registerComponentLookup(container) {
             container.register("component-lookup:main", Ember.ComponentLookup);
@@ -20699,7 +21066,7 @@ var Handlebars = function() {
                                 object = contexts.pop();
                                 if (isParam(object)) {
                                     var name = recogHandler.names[0];
-                                    if ("" + object !== this.currentParams[name]) {
+                                    if (!this.currentParams || "" + object !== this.currentParams[name]) {
                                         return false;
                                     }
                                 } else if (handlerInfo.context !== object) {
@@ -21379,8 +21746,8 @@ var Handlebars = function() {
         Ember.controllerFor = function(container, controllerName, lookupOptions) {
             return container.lookup("controller:" + controllerName, lookupOptions);
         };
-        Ember.generateController = function(container, controllerName, context) {
-            var ControllerFactory, fullName, instance, name, factoryName, controllerType;
+        Ember.generateControllerFactory = function(container, controllerName, context) {
+            var Factory, fullName, instance, name, factoryName, controllerType;
             if (context && Ember.isArray(context)) {
                 controllerType = "array";
             } else if (context) {
@@ -21389,15 +21756,20 @@ var Handlebars = function() {
                 controllerType = "basic";
             }
             factoryName = "controller:" + controllerType;
-            ControllerFactory = container.lookupFactory(factoryName).extend({
+            Factory = container.lookupFactory(factoryName).extend({
                 isGenerated: true,
                 toString: function() {
                     return "(generated " + controllerName + " controller)";
                 }
             });
             fullName = "controller:" + controllerName;
-            container.register(fullName, ControllerFactory);
-            instance = container.lookup(fullName);
+            container.register(fullName, Factory);
+            return Factory;
+        };
+        Ember.generateController = function(container, controllerName, context) {
+            Ember.generateControllerFactory(container, controllerName, context);
+            var fullName = "controller:" + controllerName;
+            var instance = container.lookup(fullName);
             if (get(instance, "namespace.LOG_ACTIVE_GENERATION")) {
                 Ember.Logger.info("generated -> " + fullName, {
                     fullName: fullName
@@ -21410,6 +21782,7 @@ var Handlebars = function() {
         var Router = requireModule("router")["default"];
         var get = Ember.get, set = Ember.set;
         var defineProperty = Ember.defineProperty;
+        var slice = Array.prototype.slice;
         var DefaultView = Ember._MetamorphView;
         Ember.Router = Ember.Object.extend(Ember.Evented, {
             location: "hash",
@@ -21417,6 +21790,9 @@ var Handlebars = function() {
                 this.router = this.constructor.router || this.constructor.map(Ember.K);
                 this._activeViews = {};
                 this._setupLocation();
+                if (get(this, "namespace.LOG_TRANSITIONS_INTERNAL")) {
+                    this.router.log = Ember.Logger.debug;
+                }
             },
             url: Ember.computed(function() {
                 return get(this, "location").getURL();
@@ -21504,6 +21880,9 @@ var Handlebars = function() {
                     options.implementation = location;
                     location = set(this, "location", Ember.Location.create(options));
                 }
+                if (typeof location.initState === "function") {
+                    location.initState();
+                }
             },
             _getHandlerFunction: function() {
                 var seen = {}, container = this.container, DefaultRoute = container.lookupFactory("route:basic"), self = this;
@@ -21550,7 +21929,7 @@ var Handlebars = function() {
                 };
             },
             _doTransition: function(method, args) {
-                args = [].slice.call(args);
+                args = slice.call(args);
                 args[0] = args[0] || "/";
                 var passedName = args[0], name, self = this, isQueryParamsOnly = false;
                 if (!isQueryParamsOnly && passedName.charAt(0) === "/") {
@@ -21568,7 +21947,7 @@ var Handlebars = function() {
                     if (error.name === "UnrecognizedURLError") {
                         Ember.assert("The URL '" + error.message + "' did not match any routes in your application");
                     }
-                });
+                }, "Ember: Check for Router unrecognized URL error");
                 return transitionPromise;
             },
             _scheduleLoadingEvent: function(transition, originRoute) {
@@ -21626,7 +22005,7 @@ var Handlebars = function() {
                 } else {
                     return;
                 }
-                Ember.Logger.assert(false, "Error while loading route: " + Ember.inspect(error));
+                Ember.Logger.error("Error while loading route: " + error.stack);
             },
             loading: function(transition, originRoute) {
                 var router = originRoute.router;
@@ -21683,7 +22062,7 @@ var Handlebars = function() {
                 return;
             }
             if (!eventWasHandled && !ignoreFailure) {
-                throw new Ember.Error("Nothing handled the action '" + name + "'.");
+                throw new Ember.Error("Nothing handled the action '" + name + "'. If you did handle the action, this error can be caused by returning true from an action handler in a controller, causing the action to bubble.");
             }
         }
         function updatePaths(router) {
@@ -21701,40 +22080,6 @@ var Handlebars = function() {
             }
             set(appController, "currentRouteName", infos[infos.length - 1].name);
         }
-        function scheduleLegacyLoadingRouteEntry(router) {
-            cancelLegacyLoadingRouteEntry(router);
-            if (router.router.activeTransition) {
-                router._legacyLoadingStateTimer = Ember.run.scheduleOnce("routerTransitions", null, enterLegacyLoadingRoute, router);
-            }
-        }
-        function enterLegacyLoadingRoute(router) {
-            var loadingRoute = router.router.getHandler("loading");
-            if (loadingRoute && !loadingRoute._loadingStateActive) {
-                if (loadingRoute.enter) {
-                    loadingRoute.enter();
-                }
-                if (loadingRoute.setup) {
-                    loadingRoute.setup();
-                }
-                loadingRoute._loadingStateActive = true;
-            }
-        }
-        function cancelLegacyLoadingRouteEntry(router) {
-            if (router._legacyLoadingStateTimer) {
-                Ember.run.cancel(router._legacyLoadingStateTimer);
-            }
-            router._legacyLoadingStateTimer = null;
-        }
-        function exitLegacyLoadingRoute(router) {
-            cancelLegacyLoadingRouteEntry(router);
-            var loadingRoute = router.router.getHandler("loading");
-            if (loadingRoute && loadingRoute._loadingStateActive) {
-                if (loadingRoute.exit) {
-                    loadingRoute.exit();
-                }
-                loadingRoute._loadingStateActive = false;
-            }
-        }
         Ember.Router.reopenClass({
             router: null,
             map: function(callback) {
@@ -21746,9 +22091,6 @@ var Handlebars = function() {
                     this.reopenClass({
                         router: router
                     });
-                }
-                if (get(this, "namespace.LOG_TRANSITIONS_INTERNAL")) {
-                    router.log = Ember.Logger.debug;
                 }
                 var dsl = Ember.RouterDSL.map(function() {
                     this.resource("application", {
@@ -21766,9 +22108,23 @@ var Handlebars = function() {
             },
             _routePath: function(handlerInfos) {
                 var path = [];
+                function intersectionMatches(a1, a2) {
+                    for (var i = 0, len = a1.length; i < len; ++i) {
+                        if (a1[i] !== a2[i]) {
+                            return false;
+                        }
+                    }
+                    return true;
+                }
                 for (var i = 1, l = handlerInfos.length; i < l; i++) {
-                    var name = handlerInfos[i].name, nameParts = name.split(".");
-                    path.push(nameParts[nameParts.length - 1]);
+                    var name = handlerInfos[i].name, nameParts = name.split("."), oldNameParts = slice.call(path);
+                    while (oldNameParts.length) {
+                        if (intersectionMatches(oldNameParts, nameParts)) {
+                            break;
+                        }
+                        oldNameParts.shift();
+                    }
+                    path.push.apply(path, nameParts.slice(oldNameParts.length));
                 }
                 return path.join(".");
             }
@@ -21785,7 +22141,9 @@ var Handlebars = function() {
             enter: function() {
                 this.activate();
             },
-            actions: null,
+            _actions: {
+                finalizeQueryParamChange: function(params, finalParams) {}
+            },
             events: null,
             mergedProperties: [ "events" ],
             deactivate: Ember.K,
@@ -21860,13 +22218,16 @@ var Handlebars = function() {
                 return {
                     find: function(name, value) {
                         var modelClass = container.lookupFactory("model:" + name);
-                        Ember.assert("You used the dynamic segment " + name + "_id in your route " + routeName + ", but " + namespace + "." + classify(name) + " did not exist and you did not override your route's `model` hook.", modelClass);
+                        Ember.assert("You used the dynamic segment " + name + "_id in your route " + routeName + ", but " + namespace + "." + classify(name) + " did not exist and you did not override your route's `model` " + "hook.", modelClass);
                         return modelClass.find(value);
                     }
                 };
             }),
             serialize: function(model, params) {
                 if (params.length < 1) {
+                    return;
+                }
+                if (!model) {
                     return;
                 }
                 var name = params[0], object = {};
@@ -21888,7 +22249,7 @@ var Handlebars = function() {
                     name = route.controllerName;
                 }
                 controller = container.lookup("controller:" + name);
-                Ember.assert("The controller named '" + name + "' could not be found. Make sure that this route exists and has already been entered at least once. If you are accessing a controller not associated with a route, make sure the controller class is explicitly defined.", controller || _skipAssert === true);
+                Ember.assert("The controller named '" + name + "' could not be found. Make sure " + "that this route exists and has already been entered at least " + "once. If you are accessing a controller not associated with a " + "route, make sure the controller class is explicitly defined.", controller || _skipAssert === true);
                 return controller;
             },
             generateController: function(name, model) {
@@ -22112,8 +22473,11 @@ var Handlebars = function() {
         Ember.onLoad("Ember.Handlebars", function(Handlebars) {
             var resolveParams = Ember.Router.resolveParams, resolvePaths = Ember.Router.resolvePaths, isSimpleClick = Ember.ViewUtils.isSimpleClick;
             function fullRouteName(router, name) {
+                var nameWithIndex;
                 if (!router.hasRoute(name)) {
-                    name = name + ".index";
+                    nameWithIndex = name + ".index";
+                    Ember.assert(fmt("The attempt to link-to route '%@' failed (also tried '%@'). " + "The router did not find '%@' in its possible routes: '%@'", [ name, nameWithIndex, name, Ember.keys(router.router.recognizer.names).join("', '") ]), router.hasRoute(nameWithIndex));
+                    name = nameWithIndex;
                 }
                 return name;
             }
@@ -22139,12 +22503,16 @@ var Handlebars = function() {
                 eventName: "click",
                 init: function() {
                     this._super.apply(this, arguments);
-                    var eventName = get(this, "eventName");
+                    var eventName = get(this, "eventName"), i;
                     this.on(eventName, this, this._invoke);
-                    var helperParameters = this.parameters, templateContext = helperParameters.context, paths = getResolvedPaths(helperParameters), length = paths.length, path, i, normalizedPath;
-                    var linkTextPath = helperParameters.options.linkTextPath;
+                },
+                _paramsChanged: function() {
+                    this.notifyPropertyChange("resolvedParams");
+                },
+                _setupPathObservers: function() {
+                    var helperParameters = this.parameters, linkTextPath = helperParameters.options.linkTextPath, paths = getResolvedPaths(helperParameters), length = paths.length, path, i, normalizedPath;
                     if (linkTextPath) {
-                        normalizedPath = Ember.Handlebars.normalizePath(templateContext, linkTextPath, helperParameters.options.data);
+                        normalizedPath = Ember.Handlebars.normalizePath(helperParameters.context, linkTextPath, helperParameters.options.data);
                         this.registerObserver(normalizedPath.root, normalizedPath.path, this, this.rerender);
                     }
                     for (i = 0; i < length; i++) {
@@ -22152,12 +22520,13 @@ var Handlebars = function() {
                         if (null === path) {
                             continue;
                         }
-                        normalizedPath = Ember.Handlebars.normalizePath(templateContext, path, helperParameters.options.data);
+                        normalizedPath = Ember.Handlebars.normalizePath(helperParameters.context, path, helperParameters.options.data);
                         this.registerObserver(normalizedPath.root, normalizedPath.path, this, this._paramsChanged);
                     }
                 },
-                _paramsChanged: function() {
-                    this.notifyPropertyChange("resolvedParams");
+                afterRender: function() {
+                    this._super.apply(this, arguments);
+                    this._setupPathObservers();
                 },
                 _queryParamsChanged: function(object, path) {
                     this.notifyPropertyChange("queryParams");
@@ -22165,13 +22534,13 @@ var Handlebars = function() {
                 concreteView: Ember.computed(function() {
                     return get(this, "parentView");
                 }).property("parentView"),
-                disabled: Ember.computed(function(key, value) {
+                disabled: Ember.computed(function computeLinkViewDisabled(key, value) {
                     if (value !== undefined) {
                         this.set("_isDisabled", value);
                     }
                     return value ? get(this, "disabledClass") : false;
                 }),
-                active: Ember.computed(function() {
+                active: Ember.computed(function computeLinkViewActive() {
                     if (get(this, "loading")) {
                         return false;
                     }
@@ -22180,7 +22549,7 @@ var Handlebars = function() {
                         return get(this, "activeClass");
                     }
                 }).property("resolvedParams", "routeArgs", "router.url"),
-                loading: Ember.computed(function() {
+                loading: Ember.computed(function computeLinkViewLoading() {
                     if (!get(this, "routeArgs")) {
                         return get(this, "loadingClass");
                     }
@@ -22192,7 +22561,9 @@ var Handlebars = function() {
                     if (!isSimpleClick(event)) {
                         return true;
                     }
-                    event.preventDefault();
+                    if (this.preventDefault !== false) {
+                        event.preventDefault();
+                    }
                     if (this.bubbles === false) {
                         event.stopPropagation();
                     }
@@ -22217,14 +22588,13 @@ var Handlebars = function() {
                         data: data
                     });
                 }).property(),
-                routeArgs: Ember.computed(function() {
+                routeArgs: Ember.computed(function computeLinkViewRouteArgs() {
                     var resolvedParams = get(this, "resolvedParams").slice(0), router = get(this, "router"), namedRoute = resolvedParams[0];
                     if (!namedRoute) {
                         return;
                     }
                     namedRoute = fullRouteName(router, namedRoute);
                     resolvedParams[0] = namedRoute;
-                    Ember.assert(fmt("The attempt to link-to route '%@' failed. The router did not find '%@' in its possible routes: '%@'", [ namedRoute, namedRoute, Ember.keys(router.router.recognizer.names).join("', '") ]), router.hasRoute(namedRoute));
                     for (var i = 1, len = resolvedParams.length; i < len; ++i) {
                         var param = resolvedParams[i];
                         if (param === null || typeof param === "undefined") {
@@ -22256,7 +22626,7 @@ var Handlebars = function() {
                     });
                     return queryParams;
                 }).property("_potentialQueryParams.[]"),
-                href: Ember.computed(function() {
+                href: Ember.computed(function computeLinkViewHref() {
                     if (get(this, "tagName") !== "a") {
                         return;
                     }
@@ -22268,7 +22638,7 @@ var Handlebars = function() {
             LinkView.toString = function() {
                 return "LinkView";
             };
-            Ember.Handlebars.registerHelper("link-to", function(name) {
+            Ember.Handlebars.registerHelper("link-to", function linkToHelper(name) {
                 var options = [].slice.call(arguments, -1)[0], params = [].slice.call(arguments, 0, -1), hash = options.hash;
                 hash.disabledBinding = hash.disabledWhen;
                 if (!options.fn) {
@@ -22293,60 +22663,79 @@ var Handlebars = function() {
                 };
                 return Ember.Handlebars.helpers.view.call(this, LinkView, options);
             });
-            Ember.Handlebars.registerHelper("linkTo", Ember.Handlebars.helpers["link-to"]);
-        });
-    })();
-    (function() {
-        var get = Ember.get, set = Ember.set;
-        Ember.onLoad("Ember.Handlebars", function(Handlebars) {
-            Handlebars.OutletView = Ember.ContainerView.extend(Ember._Metamorph);
-            Handlebars.registerHelper("outlet", function(property, options) {
-                var outletSource, outletContainerClass;
-                if (property && property.data && property.data.isRenderData) {
-                    options = property;
-                    property = "main";
-                }
-                outletSource = options.data.view;
-                while (!outletSource.get("template.isTop")) {
-                    outletSource = outletSource.get("_parentView");
-                }
-                outletContainerClass = options.hash.viewClass || Handlebars.OutletView;
-                options.data.view.set("outletSource", outletSource);
-                options.hash.currentViewBinding = "_view.outletSource._outlets." + property;
-                return Handlebars.helpers.view.call(this, outletContainerClass, options);
+            Ember.Handlebars.registerHelper("linkTo", function linkToHelper() {
+                Ember.warn("The 'linkTo' view helper is deprecated in favor of 'link-to'");
+                return Ember.Handlebars.helpers["link-to"].apply(this, arguments);
             });
         });
     })();
     (function() {
         var get = Ember.get, set = Ember.set;
         Ember.onLoad("Ember.Handlebars", function(Handlebars) {
-            Ember.Handlebars.registerHelper("render", function(name, contextString, options) {
-                Ember.assert("You must pass a template to render", arguments.length >= 2);
-                var contextProvided = arguments.length === 3, container, router, controller, view, context, lookupOptions;
-                if (arguments.length === 2) {
+            Handlebars.OutletView = Ember.ContainerView.extend(Ember._Metamorph);
+            Handlebars.registerHelper("outlet", function outletHelper(property, options) {
+                var outletSource, container, viewName, viewClass, viewFullName;
+                if (property && property.data && property.data.isRenderData) {
+                    options = property;
+                    property = "main";
+                }
+                container = options.data.view.container;
+                outletSource = options.data.view;
+                while (!outletSource.get("template.isTop")) {
+                    outletSource = outletSource.get("_parentView");
+                }
+                viewName = options.hash.view;
+                if (viewName) {
+                    viewFullName = "view:" + viewName;
+                    Ember.assert("Using a quoteless view parameter with {{outlet}} is not supported. Please update to quoted usage '{{outlet \"" + viewName + '"}}.', options.hashTypes.view !== "ID");
+                    Ember.assert("The view name you supplied '" + viewName + "' did not resolve to a view.", container.has(viewFullName));
+                }
+                viewClass = viewName ? container.lookupFactory(viewFullName) : options.hash.viewClass || Handlebars.OutletView;
+                options.data.view.set("outletSource", outletSource);
+                options.hash.currentViewBinding = "_view.outletSource._outlets." + property;
+                return Handlebars.helpers.view.call(this, viewClass, options);
+            });
+        });
+    })();
+    (function() {
+        var get = Ember.get, set = Ember.set;
+        Ember.onLoad("Ember.Handlebars", function(Handlebars) {
+            Ember.Handlebars.registerHelper("render", function renderHelper(name, contextString, options) {
+                var length = arguments.length;
+                Ember.assert("You must pass a template to render", length >= 2);
+                var contextProvided = length === 3, container, router, controller, view, context, lookupOptions;
+                container = (options || contextString).data.keywords.controller.container;
+                router = container.lookup("router:main");
+                if (length === 2) {
                     options = contextString;
                     contextString = undefined;
-                }
-                if (typeof contextString === "string") {
+                    Ember.assert('You can only use the {{render}} helper once without a model object as its second argument, as in {{render "post" post}}.', !router || !router._lookupActiveView(name));
+                } else if (length === 3) {
                     context = Ember.Handlebars.get(options.contexts[1], contextString, options);
-                    lookupOptions = {
-                        singleton: false
-                    };
+                } else {
+                    throw Ember.Error("You must pass a templateName to render");
                 }
                 name = name.replace(/\//g, ".");
-                container = options.data.keywords.controller.container;
-                router = container.lookup("router:main");
-                Ember.assert('You can only use the {{render}} helper once without a model object as its second argument, as in {{render "post" post}}.', contextProvided || !router || !router._lookupActiveView(name));
                 view = container.lookup("view:" + name) || container.lookup("view:default");
-                var controllerName = options.hash.controller;
-                if (controllerName) {
-                    controller = container.lookup("controller:" + controllerName, lookupOptions);
-                    Ember.assert("The controller name you supplied '" + controllerName + "' did not resolve to a controller.", !!controller);
-                } else {
-                    controller = container.lookup("controller:" + name, lookupOptions) || Ember.generateController(container, name, context);
+                var controllerName = options.hash.controller || name;
+                var controllerFullName = "controller:" + controllerName;
+                if (options.hash.controller) {
+                    Ember.assert("The controller name you supplied '" + controllerName + "' did not resolve to a controller.", container.has(controllerFullName));
                 }
-                if (controller && contextProvided) {
-                    controller.set("model", context);
+                var parentController = options.data.keywords.controller;
+                if (length > 2) {
+                    var factory = container.lookupFactory(controllerFullName) || Ember.generateControllerFactory(container, controllerName, context);
+                    controller = factory.create({
+                        model: context,
+                        parentController: parentController,
+                        target: parentController
+                    });
+                } else {
+                    controller = container.lookup(controllerFullName) || Ember.generateController(container, controllerName);
+                    controller.setProperties({
+                        target: parentController,
+                        parentController: parentController
+                    });
                 }
                 var root = options.contexts[1];
                 if (root) {
@@ -22354,9 +22743,10 @@ var Handlebars = function() {
                         controller.set("model", Ember.Handlebars.get(root, contextString, options));
                     });
                 }
-                controller.set("target", options.data.keywords.controller);
                 options.hash.viewName = Ember.String.camelize(name);
-                options.hash.template = container.lookup("template:" + name);
+                var templateName = "template:" + name;
+                Ember.assert("You used `{{render '" + name + "'}}`, but '" + name + "' can not be found as either a template or a view.", container.has("view:" + name) || container.has(templateName));
+                options.hash.template = container.lookup(templateName);
                 options.hash.controller = controller;
                 if (router && !context) {
                     router._connectActiveView(name, view);
@@ -22390,7 +22780,7 @@ var Handlebars = function() {
                     if (POINTER_EVENT_TYPE_REGEX.test(event.type)) {
                         return isSimpleClick(event);
                     } else {
-                        allowedKeys = [];
+                        allowedKeys = "";
                     }
                 }
                 if (allowedKeys.indexOf("any") >= 0) {
@@ -22408,11 +22798,13 @@ var Handlebars = function() {
                 var actionId = (++Ember.uuid).toString();
                 ActionHelper.registeredActions[actionId] = {
                     eventName: options.eventName,
-                    handler: function(event) {
+                    handler: function handleRegisteredAction(event) {
                         if (!isAllowedEvent(event, allowedKeys)) {
                             return true;
                         }
-                        event.preventDefault();
+                        if (options.preventDefault !== false) {
+                            event.preventDefault();
+                        }
                         if (options.bubbles === false) {
                             event.stopPropagation();
                         }
@@ -22422,7 +22814,7 @@ var Handlebars = function() {
                         } else {
                             target = target.root;
                         }
-                        Ember.run(function() {
+                        Ember.run(function runRegisteredAction() {
                             if (target.send) {
                                 target.send.apply(target, args(options.parameters, actionName));
                             } else {
@@ -22437,7 +22829,7 @@ var Handlebars = function() {
                 });
                 return actionId;
             };
-            EmberHandlebars.registerHelper("action", function(actionName) {
+            EmberHandlebars.registerHelper("action", function actionHelper(actionName) {
                 var options = arguments[arguments.length - 1], contexts = a_slice.call(arguments, 1, -1);
                 var hash = options.hash, controller;
                 var action = {
@@ -22462,52 +22854,11 @@ var Handlebars = function() {
                     options: options
                 };
                 action.bubbles = hash.bubbles;
+                action.preventDefault = hash.preventDefault;
                 var actionId = ActionHelper.registerAction(actionName, action, hash.allowedKeys);
                 return new SafeString('data-ember-action="' + actionId + '"');
             });
         });
-    })();
-    (function() {
-        if (Ember.ENV.EXPERIMENTAL_CONTROL_HELPER) {
-            var get = Ember.get, set = Ember.set;
-            Ember.Handlebars.registerHelper("control", function(path, modelPath, options) {
-                if (arguments.length === 2) {
-                    options = modelPath;
-                    modelPath = undefined;
-                }
-                var model;
-                if (modelPath) {
-                    model = Ember.Handlebars.get(this, modelPath, options);
-                }
-                var controller = options.data.keywords.controller, view = options.data.keywords.view, children = get(controller, "_childContainers"), controlID = options.hash.controlID, container, subContainer;
-                if (children.hasOwnProperty(controlID)) {
-                    subContainer = children[controlID];
-                } else {
-                    container = get(controller, "container"), subContainer = container.child();
-                    children[controlID] = subContainer;
-                }
-                var normalizedPath = path.replace(/\//g, ".");
-                var childView = subContainer.lookup("view:" + normalizedPath) || subContainer.lookup("view:default"), childController = subContainer.lookup("controller:" + normalizedPath), childTemplate = subContainer.lookup("template:" + path);
-                Ember.assert("Could not find controller for path: " + normalizedPath, childController);
-                Ember.assert("Could not find view for path: " + normalizedPath, childView);
-                set(childController, "target", controller);
-                set(childController, "model", model);
-                options.hash.template = childTemplate;
-                options.hash.controller = childController;
-                function observer() {
-                    var model = Ember.Handlebars.get(this, modelPath, options);
-                    set(childController, "model", model);
-                    childView.rerender();
-                }
-                if (modelPath) {
-                    Ember.addObserver(this, modelPath, observer);
-                    childView.one("willDestroyElement", this, function() {
-                        Ember.removeObserver(this, modelPath, observer);
-                    });
-                }
-                Ember.Handlebars.helpers.view.call(this, childView, options);
-            });
-        }
     })();
     (function() {})();
     (function() {
@@ -22663,7 +23014,6 @@ var Handlebars = function() {
         Ember.HistoryLocation = Ember.Object.extend({
             init: function() {
                 set(this, "location", get(this, "location") || window.location);
-                this.initState();
             },
             initState: function() {
                 set(this, "history", get(this, "history") || window.history);
@@ -22843,7 +23193,7 @@ var Handlebars = function() {
             namespace: null,
             normalize: function(fullName) {
                 var split = fullName.split(":", 2), type = split[0], name = split[1];
-                Ember.assert("Tried to normalize a container name without a colon (:) in it. You probably tried to lookup a name that did not contain a type, a colon, and a name. A proper lookup name would be `view:post`.", split.length === 2);
+                Ember.assert("Tried to normalize a container name without a colon (:) in " + "it. You probably tried to lookup a name that did not contain " + "a type, a colon, and a name. A proper lookup name would be " + "`view:post`.", split.length === 2);
                 if (type !== "template") {
                     var result = name;
                     if (result.indexOf(".") > -1) {
@@ -22864,7 +23214,7 @@ var Handlebars = function() {
             resolve: function(fullName) {
                 var parsedName = this.parseName(fullName), typeSpecificResolveMethod = this[parsedName.resolveMethodName];
                 if (!parsedName.name || !parsedName.type) {
-                    throw new TypeError("Invalid fullName: `" + fullName + "`, must of of the form `type:name` ");
+                    throw new TypeError("Invalid fullName: `" + fullName + "`, must be of the form `type:name` ");
                 }
                 if (typeSpecificResolveMethod) {
                     var resolved = typeSpecificResolveMethod.call(this, parsedName);
@@ -23015,7 +23365,7 @@ var Handlebars = function() {
                 if (!this.$ || this.$.isReady) {
                     Ember.run.schedule("actions", self, "_initialize");
                 } else {
-                    this.$().ready(function() {
+                    this.$().ready(function runInitialize() {
                         Ember.run(self, "_initialize");
                     });
                 }
@@ -23209,25 +23559,52 @@ var Handlebars = function() {
     (function() {
         var get = Ember.get, set = Ember.set;
         function verifyNeedsDependencies(controller, container, needs) {
-            var dependency, i, l;
+            var dependency, i, l, missing = [];
             for (i = 0, l = needs.length; i < l; i++) {
                 dependency = needs[i];
+                Ember.assert(Ember.inspect(controller) + "#needs must not specify dependencies with periods in their names (" + dependency + ")", dependency.indexOf(".") === -1);
                 if (dependency.indexOf(":") === -1) {
                     dependency = "controller:" + dependency;
                 }
                 if (!container.has(dependency)) {
-                    Ember.assert(Ember.inspect(controller) + " needs " + dependency + " but it does not exist", false);
+                    missing.push(dependency);
                 }
             }
+            if (missing.length) {
+                throw new Ember.Error(Ember.inspect(controller) + " needs [ " + missing.join(", ") + " ] but " + (missing.length > 1 ? "they" : "it") + " could not be found");
+            }
         }
+        var defaultControllersComputedProperty = Ember.computed(function() {
+            var controller = this;
+            return {
+                needs: get(controller, "needs"),
+                container: get(controller, "container"),
+                unknownProperty: function(controllerName) {
+                    var needs = this.needs, dependency, i, l;
+                    for (i = 0, l = needs.length; i < l; i++) {
+                        dependency = needs[i];
+                        if (dependency === controllerName) {
+                            return this.container.lookup("controller:" + controllerName);
+                        }
+                    }
+                    var errorMessage = Ember.inspect(controller) + "#needs does not include `" + controllerName + "`. To access the " + controllerName + " controller from " + Ember.inspect(controller) + ", " + Ember.inspect(controller) + " should have a `needs` property that is an array of the controllers it has access to.";
+                    throw new ReferenceError(errorMessage);
+                },
+                setUnknownProperty: function(key, value) {
+                    throw new Error("You cannot overwrite the value of `controllers." + key + "` of " + Ember.inspect(controller));
+                }
+            };
+        });
         Ember.ControllerMixin.reopen({
             concatenatedProperties: [ "needs" ],
             needs: [],
             init: function() {
                 var needs = get(this, "needs"), length = get(needs, "length");
                 if (length > 0) {
-                    Ember.assert(" `" + Ember.inspect(this) + " specifies `needs`, but does not have a container. Please ensure this controller was instantiated with a container.", this.container);
-                    verifyNeedsDependencies(this, this.container, needs);
+                    Ember.assert(" `" + Ember.inspect(this) + " specifies `needs`, but does " + "not have a container. Please ensure this controller was " + "instantiated with a container.", this.container || Ember.meta(this, false).descs.controllers !== defaultControllersComputedProperty);
+                    if (this.container) {
+                        verifyNeedsDependencies(this, this.container, needs);
+                    }
                     get(this, "controllers");
                 }
                 this._super.apply(this, arguments);
@@ -23236,24 +23613,7 @@ var Handlebars = function() {
                 Ember.deprecate("Controller#controllerFor is deprecated, please use Controller#needs instead");
                 return Ember.controllerFor(get(this, "container"), controllerName);
             },
-            controllers: Ember.computed(function() {
-                var controller = this;
-                return {
-                    needs: get(controller, "needs"),
-                    container: get(controller, "container"),
-                    unknownProperty: function(controllerName) {
-                        var needs = this.needs, dependency, i, l;
-                        for (i = 0, l = needs.length; i < l; i++) {
-                            dependency = needs[i];
-                            if (dependency === controllerName) {
-                                return this.container.lookup("controller:" + controllerName);
-                            }
-                        }
-                        var errorMessage = Ember.inspect(controller) + "#needs does not include `" + controllerName + "`. To access the " + controllerName + " controller from " + Ember.inspect(controller) + ", " + Ember.inspect(controller) + " should have a `needs` property that is an array of the controllers it has access to.";
-                        throw new ReferenceError(errorMessage);
-                    }
-                };
-            }).readOnly()
+            controllers: defaultControllersComputedProperty
         });
     })();
     (function() {})();
@@ -23409,7 +23769,7 @@ var Handlebars = function() {
     })();
     (function() {})();
     (function() {
-        var slice = [].slice, helpers = {}, originalMethods = {}, injectHelpersCallbacks = [];
+        var slice = [].slice, helpers = {}, injectHelpersCallbacks = [];
         Ember.Test = {
             registerHelper: function(name, helperMethod) {
                 helpers[name] = {
@@ -23429,10 +23789,6 @@ var Handlebars = function() {
             },
             unregisterHelper: function(name) {
                 delete helpers[name];
-                if (originalMethods[name]) {
-                    this.helperContainer[name] = originalMethods[name];
-                }
-                delete originalMethods[name];
                 delete Ember.Test.Promise.prototype[name];
             },
             onInjectHelpers: function(callback) {
@@ -23501,9 +23857,11 @@ var Handlebars = function() {
         }
         Ember.Application.reopen({
             testHelpers: {},
+            originalMethods: {},
+            testing: false,
             setupForTesting: function() {
                 Ember.testing = true;
-                this.deferReadiness();
+                this.testing = true;
                 this.Router.reopen({
                     location: "none"
                 });
@@ -23518,22 +23876,20 @@ var Handlebars = function() {
                 }
                 this.testHelpers = {};
                 for (var name in helpers) {
-                    originalMethods[name] = this.helperContainer[name];
+                    this.originalMethods[name] = this.helperContainer[name];
                     this.testHelpers[name] = this.helperContainer[name] = helper(this, name);
                     protoWrap(Ember.Test.Promise.prototype, name, helper(this, name), helpers[name].meta.wait);
                 }
                 for (var i = 0, l = injectHelpersCallbacks.length; i < l; i++) {
                     injectHelpersCallbacks[i](this);
                 }
-                Ember.RSVP.configure("onerror", onerror);
             },
             removeTestHelpers: function() {
                 for (var name in helpers) {
-                    this.helperContainer[name] = originalMethods[name];
+                    this.helperContainer[name] = this.originalMethods[name];
                     delete this.testHelpers[name];
-                    delete originalMethods[name];
+                    delete this.originalMethods[name];
                 }
-                Ember.RSVP.configure("onerror", null);
             }
         });
         function protoWrap(proto, name, callback, isAsync) {
@@ -23576,9 +23932,18 @@ var Handlebars = function() {
                 return lastPromise;
             }
         }
-        function onerror(error) {
-            Ember.Test.adapter.exception(error);
-        }
+    })();
+    (function() {
+        Ember.onLoad("Ember.Application", function(Application) {
+            Application.initializer({
+                name: "deferReadiness in `testing` mode",
+                initialize: function(container, application) {
+                    if (application.testing) {
+                        application.deferReadiness();
+                    }
+                }
+            });
+        });
     })();
     (function() {
         var $ = Ember.$;
@@ -23613,9 +23978,7 @@ var Handlebars = function() {
             asyncStart: Ember.K,
             asyncEnd: Ember.K,
             exception: function(error) {
-                setTimeout(function() {
-                    throw error;
-                });
+                throw error;
             }
         });
         Test.QUnitAdapter = Test.Adapter.extend({
@@ -23638,11 +24001,24 @@ var Handlebars = function() {
                 Test.pendingAjaxRequests++;
             });
             Ember.$(document).ajaxStop(function() {
-                Ember.assert("An ajaxStop event which would cause the number of pending AJAX requests to be negative has been triggered. This is most likely caused by AJAX events that were started before calling `injectTestHelpers()`.", Test.pendingAjaxRequests !== 0);
+                Ember.assert("An ajaxStop event which would cause the number of pending AJAX " + "requests to be negative has been triggered. This is most likely " + "caused by AJAX events that were started before calling " + "`injectTestHelpers()`.", Test.pendingAjaxRequests !== 0);
                 Test.pendingAjaxRequests--;
             });
         });
+        function currentRouteName(app) {
+            var appController = app.__container__.lookup("controller:application");
+            return get(appController, "currentRouteName");
+        }
+        function currentPath(app) {
+            var appController = app.__container__.lookup("controller:application");
+            return get(appController, "currentPath");
+        }
+        function currentURL(app) {
+            var router = app.__container__.lookup("router:main");
+            return get(router, "location").getURL();
+        }
         function visit(app, url) {
+            Ember.run(app, "advanceReadiness");
             app.__container__.lookup("router:main").location.setURL(url);
             Ember.run(app, app.handleURL, url);
             return wait(app);
@@ -23664,6 +24040,15 @@ var Handlebars = function() {
             }
             Ember.run($el, "mouseup");
             Ember.run($el, "click");
+            return wait(app);
+        }
+        function triggerEvent(app, selector, context, event) {
+            if (typeof method === "undefined") {
+                event = context;
+                context = null;
+            }
+            var $el = findWithAssert(app, selector, context);
+            Ember.run($el, "trigger", event);
             return wait(app);
         }
         function keyEvent(app, selector, context, type, keyCode) {
@@ -23722,6 +24107,13 @@ var Handlebars = function() {
                         return;
                     }
                     if (Ember.run.hasScheduledTimers() || Ember.run.currentRunLoop) {
+                        return;
+                    }
+                    if (Test.waiters && Test.waiters.any(function(waiter) {
+                        var context = waiter[0];
+                        var callback = waiter[1];
+                        return !callback.call(context);
+                    })) {
                         return;
                     }
                     clearInterval(watcher);
@@ -23796,9 +24188,10 @@ var Handlebars = function() {
         };
     })();
     (function() {
+        var DS;
         if ("undefined" === typeof DS) {
             DS = Ember.Namespace.create({
-                VERSION: "1.0.0-beta.2"
+                VERSION: "1.0.0-beta.5"
             });
             if ("undefined" !== typeof window) {
                 window.DS = DS;
@@ -23836,7 +24229,7 @@ var Handlebars = function() {
                 if (options && options.includeId) {
                     var id = get(record, "id");
                     if (id) {
-                        json[get(this, "primaryKey")] = get(record, "id");
+                        json[get(this, "primaryKey")] = id;
                     }
                 }
                 record.eachAttribute(function(key, attribute) {
@@ -23909,8 +24302,10 @@ var Handlebars = function() {
                     delete payload.meta;
                 }
             },
-            transformFor: function(attributeType) {
-                return this.container.lookup("transform:" + attributeType);
+            transformFor: function(attributeType, skipAssertion) {
+                var transform = this.container.lookup("transform:" + attributeType);
+                Ember.assert("Unable to find transform for '" + attributeType + "'", skipAssertion || !!transform);
+                return transform;
             }
         });
     })();
@@ -24109,6 +24504,7 @@ var Handlebars = function() {
             });
             Application.initializer({
                 name: "transforms",
+                before: "store",
                 initialize: function(container, application) {
                     application.register("transform:boolean", DS.BooleanTransform);
                     application.register("transform:date", DS.DateTransform);
@@ -24118,12 +24514,14 @@ var Handlebars = function() {
             });
             Application.initializer({
                 name: "dataAdapter",
+                before: "store",
                 initialize: function(container, application) {
                     application.register("dataAdapter:main", DS.DebugAdapter);
                 }
             });
             Application.initializer({
                 name: "injectStore",
+                before: "store",
                 initialize: function(container, application) {
                     application.inject("controller", "store", "store:main");
                     application.inject("route", "store", "store:main");
@@ -24187,9 +24585,10 @@ var Handlebars = function() {
                 get(this, "content").removeObject(record);
             },
             save: function() {
-                var promise = Ember.RSVP.all(this.invoke("save")).then(function(array) {
+                var promiseLabel = "DS: RecordArray#save " + get(this, "type");
+                var promise = Ember.RSVP.all(this.invoke("save"), promiseLabel).then(function(array) {
                     return Ember.A(array);
-                });
+                }, null, "DS: RecordArray#save apply Ember.NativeArray");
                 return DS.PromiseArray.create({
                     promise: promise
                 });
@@ -24238,9 +24637,11 @@ var Handlebars = function() {
                 this._super.apply(this, arguments);
                 this._changesToSync = Ember.OrderedSet.create();
             },
+            name: null,
             owner: null,
             isPolymorphic: false,
             isLoaded: false,
+            promise: null,
             loadingRecordsCount: function(count) {
                 this.loadingRecordsCount = count;
             },
@@ -24252,7 +24653,7 @@ var Handlebars = function() {
                 }
             },
             fetch: function() {
-                var records = get(this, "content"), store = get(this, "store"), owner = get(this, "owner"), resolver = Ember.RSVP.defer();
+                var records = get(this, "content"), store = get(this, "store"), owner = get(this, "owner"), resolver = Ember.RSVP.defer("DS: ManyArray#fetch " + get(this, "type"));
                 var unloadedRecords = records.filterProperty("isEmpty", true);
                 store.fetchMany(unloadedRecords, owner, resolver);
             },
@@ -24314,75 +24715,6 @@ var Handlebars = function() {
     })();
     (function() {})();
     (function() {
-        var get = Ember.get;
-        var forEach = Ember.ArrayPolyfills.forEach;
-        var resolveMapConflict = function(oldValue, newValue) {
-            return oldValue;
-        };
-        var transformMapKey = function(key, value) {
-            return key;
-        };
-        var transformMapValue = function(key, value) {
-            return value;
-        };
-        DS._Mappable = Ember.Mixin.create({
-            createInstanceMapFor: function(mapName) {
-                var instanceMeta = getMappableMeta(this);
-                instanceMeta.values = instanceMeta.values || {};
-                if (instanceMeta.values[mapName]) {
-                    return instanceMeta.values[mapName];
-                }
-                var instanceMap = instanceMeta.values[mapName] = new Ember.Map();
-                var klass = this.constructor;
-                while (klass && klass !== DS.Store) {
-                    this._copyMap(mapName, klass, instanceMap);
-                    klass = klass.superclass;
-                }
-                instanceMeta.values[mapName] = instanceMap;
-                return instanceMap;
-            },
-            _copyMap: function(mapName, klass, instanceMap) {
-                var classMeta = getMappableMeta(klass);
-                var classMap = classMeta[mapName];
-                if (classMap) {
-                    forEach.call(classMap, eachMap, this);
-                }
-                function eachMap(key, value) {
-                    var transformedKey = (klass.transformMapKey || transformMapKey)(key, value);
-                    var transformedValue = (klass.transformMapValue || transformMapValue)(key, value);
-                    var oldValue = instanceMap.get(transformedKey);
-                    var newValue = transformedValue;
-                    if (oldValue) {
-                        newValue = (this.constructor.resolveMapConflict || resolveMapConflict)(oldValue, newValue);
-                    }
-                    instanceMap.set(transformedKey, newValue);
-                }
-            }
-        });
-        DS._Mappable.generateMapFunctionFor = function(mapName, transform) {
-            return function(key, value) {
-                var meta = getMappableMeta(this);
-                var map = meta[mapName] || Ember.MapWithDefault.create({
-                    defaultValue: function() {
-                        return {};
-                    }
-                });
-                transform.call(this, key, value, map);
-                meta[mapName] = map;
-            };
-        };
-        function getMappableMeta(obj) {
-            var meta = Ember.meta(obj, true), keyName = "DS.Mappable", value = meta[keyName];
-            if (!value) {
-                meta[keyName] = {};
-            }
-            if (!meta.hasOwnProperty(keyName)) {
-                meta[keyName] = Ember.create(meta[keyName]);
-            }
-            return meta[keyName];
-        }
-    })();
-    (function() {
         var get = Ember.get, set = Ember.set;
         var once = Ember.run.once;
         var isNone = Ember.isNone;
@@ -24390,10 +24722,11 @@ var Handlebars = function() {
         var indexOf = Ember.EnumerableUtils.indexOf;
         var map = Ember.EnumerableUtils.map;
         var resolve = Ember.RSVP.resolve;
+        var copy = Ember.copy;
         var coerceId = function(id) {
             return id == null ? null : id + "";
         };
-        DS.Store = Ember.Object.extend(DS._Mappable, {
+        DS.Store = Ember.Object.extend({
             init: function() {
                 this.typeMaps = {};
                 this.recordArrayManager = DS.RecordArrayManager.create({
@@ -24406,7 +24739,7 @@ var Handlebars = function() {
             serialize: function(record, options) {
                 return this.serializerFor(record.constructor.typeKey).serialize(record, options);
             },
-            defaultAdapter: Ember.computed(function() {
+            defaultAdapter: Ember.computed("adapter", function() {
                 var adapter = get(this, "adapter");
                 Ember.assert("You tried to set `adapter` property to an instance of `DS.Adapter`, where it should be a name or a factory", !(adapter instanceof DS.Adapter));
                 if (typeof adapter === "string") {
@@ -24418,10 +24751,10 @@ var Handlebars = function() {
                     });
                 }
                 return adapter;
-            }).property("adapter"),
+            }),
             createRecord: function(type, properties) {
                 type = this.modelFor(type);
-                properties = properties || {};
+                properties = copy(properties) || {};
                 if (isNone(properties.id)) {
                     properties.id = this._generateId(type);
                 }
@@ -24456,16 +24789,15 @@ var Handlebars = function() {
             findById: function(type, id) {
                 type = this.modelFor(type);
                 var record = this.recordForId(type, id);
-                var promise = this.fetchRecord(record) || resolve(record);
+                var promise = this.fetchRecord(record) || resolve(record, "DS: Store#findById " + type + " with id: " + id);
                 return promiseObject(promise);
             },
             findByIds: function(type, ids) {
                 var store = this;
+                var promiseLabel = "DS: Store#findByIds " + type;
                 return promiseArray(Ember.RSVP.all(map(ids, function(id) {
                     return store.findById(type, id);
-                })).then(function(array) {
-                    return Ember.A(array);
-                }));
+                })).then(Ember.A, null, "DS: Store#findByIds of " + type + " complete"));
             },
             fetchRecord: function(record) {
                 if (isNone(record)) {
@@ -24477,28 +24809,27 @@ var Handlebars = function() {
                 if (!get(record, "isEmpty")) {
                     return null;
                 }
-                var type = record.constructor, id = get(record, "id"), resolver = Ember.RSVP.defer();
-                record.loadingData(resolver.promise);
+                var type = record.constructor, id = get(record, "id");
                 var adapter = this.adapterFor(type);
                 Ember.assert("You tried to find a record but you have no adapter (for " + type + ")", adapter);
                 Ember.assert("You tried to find a record but your adapter (for " + type + ") does not implement 'find'", adapter.find);
-                _find(adapter, this, type, id, resolver);
-                return resolver.promise;
+                var promise = _find(adapter, this, type, id);
+                record.loadingData(promise);
+                return promise;
             },
             getById: function(type, id) {
-                type = this.modelFor(type);
                 if (this.hasRecordForId(type, id)) {
                     return this.recordForId(type, id);
                 } else {
                     return null;
                 }
             },
-            reloadRecord: function(record, resolver) {
+            reloadRecord: function(record) {
                 var type = record.constructor, adapter = this.adapterFor(type), id = get(record, "id");
                 Ember.assert("You cannot reload a record without an ID", id);
                 Ember.assert("You tried to reload a record but you have no adapter (for " + type + ")", adapter);
                 Ember.assert("You tried to reload a record but your adapter does not implement `find`", adapter.find);
-                return _find(adapter, this, type, id, resolver);
+                return _find(adapter, this, type, id);
             },
             fetchMany: function(records, owner, resolver) {
                 if (!records.length) {
@@ -24516,11 +24847,12 @@ var Handlebars = function() {
                     var ids = records.mapProperty("id"), adapter = this.adapterFor(type);
                     Ember.assert("You tried to load many records but you have no adapter (for " + type + ")", adapter);
                     Ember.assert("You tried to load many records but your adapter does not implement `findMany`", adapter.findMany);
-                    _findMany(adapter, this, type, ids, owner, resolver);
+                    resolver.resolve(_findMany(adapter, this, type, ids, owner));
                 }, this);
             },
             hasRecordForId: function(type, id) {
                 id = coerceId(id);
+                type = this.modelFor(type);
                 return !!this.typeMapFor(type).idToRecord[id];
             },
             recordForId: function(type, id) {
@@ -24559,27 +24891,22 @@ var Handlebars = function() {
                 Ember.assert("You tried to load a hasMany relationship but you have no adapter (for " + owner.constructor + ")", adapter);
                 Ember.assert("You tried to load a hasMany relationship from a specified `link` in the original payload but your adapter does not implement `findHasMany`", adapter.findHasMany);
                 var records = this.recordArrayManager.createManyArray(relationship.type, Ember.A([]));
-                _findHasMany(adapter, this, owner, link, relationship, resolver);
+                resolver.resolve(_findHasMany(adapter, this, owner, link, relationship));
                 return records;
             },
             findBelongsTo: function(owner, link, relationship, resolver) {
                 var adapter = this.adapterFor(owner.constructor);
                 Ember.assert("You tried to load a belongsTo relationship but you have no adapter (for " + owner.constructor + ")", adapter);
                 Ember.assert("You tried to load a belongsTo relationship from a specified `link` in the original payload but your adapter does not implement `findBelongsTo`", adapter.findBelongsTo);
-                _findBelongsTo(adapter, this, owner, link, relationship, resolver);
+                resolver.resolve(_findBelongsTo(adapter, this, owner, link, relationship));
             },
             findQuery: function(type, query) {
                 type = this.modelFor(type);
-                var array = DS.AdapterPopulatedRecordArray.create({
-                    type: type,
-                    query: query,
-                    content: Ember.A(),
-                    store: this
-                });
-                var adapter = this.adapterFor(type), resolver = Ember.RSVP.defer();
+                var array = this.recordArrayManager.createAdapterPopulatedRecordArray(type, query);
+                var adapter = this.adapterFor(type), promiseLabel = "DS: Store#findQuery " + type, resolver = Ember.RSVP.defer(promiseLabel);
                 Ember.assert("You tried to load a query but you have no adapter (for " + type + ")", adapter);
                 Ember.assert("You tried to load a query but your adapter does not implement `findQuery`", adapter.findQuery);
-                _findQuery(adapter, this, type, query, array, resolver);
+                resolver.resolve(_findQuery(adapter, this, type, query, array));
                 return promiseArray(resolver.promise);
             },
             findAll: function(type) {
@@ -24587,12 +24914,11 @@ var Handlebars = function() {
                 return this.fetchAll(type, this.all(type));
             },
             fetchAll: function(type, array) {
-                var adapter = this.adapterFor(type), sinceToken = this.typeMapFor(type).metadata.since, resolver = Ember.RSVP.defer();
+                var adapter = this.adapterFor(type), sinceToken = this.typeMapFor(type).metadata.since;
                 set(array, "isUpdating", true);
                 Ember.assert("You tried to load all records but you have no adapter (for " + type + ")", adapter);
                 Ember.assert("You tried to load all records but your adapter does not implement `findAll`", adapter.findAll);
-                _findAll(adapter, this, type, sinceToken, resolver);
-                return promiseArray(resolver.promise);
+                return promiseArray(_findAll(adapter, this, type, sinceToken));
             },
             didUpdateAll: function(type) {
                 var findAllCache = this.typeMapFor(type).findAllCache;
@@ -24604,13 +24930,7 @@ var Handlebars = function() {
                 if (findAllCache) {
                     return findAllCache;
                 }
-                var array = DS.RecordArray.create({
-                    type: type,
-                    content: Ember.A(),
-                    store: this,
-                    isLoaded: true
-                });
-                this.recordArrayManager.registerFilteredRecordArray(array, type);
+                var array = this.recordArrayManager.createRecordArray(type);
                 typeMap.findAllCache = array;
                 return array;
             },
@@ -24620,6 +24940,7 @@ var Handlebars = function() {
                 while (record = records.pop()) {
                     record.unloadRecord();
                 }
+                typeMap.findAllCache = null;
             },
             filter: function(type, query, filter) {
                 var promise;
@@ -24629,21 +24950,11 @@ var Handlebars = function() {
                     filter = query;
                 }
                 type = this.modelFor(type);
-                var array = DS.FilteredRecordArray.create({
-                    type: type,
-                    content: Ember.A(),
-                    store: this,
-                    manager: this.recordArrayManager,
-                    filterFunction: filter
-                });
-                this.recordArrayManager.registerFilteredRecordArray(array, type, filter);
-                if (promise) {
-                    return promise.then(function() {
-                        return array;
-                    });
-                } else {
+                var array = this.recordArrayManager.createFilteredRecordArray(type, filter);
+                promise = promise || resolve(array);
+                return promiseArray(promise.then(function() {
                     return array;
-                }
+                }, null, "DS: Store#filter of " + type));
             },
             recordIsLoaded: function(type, id) {
                 if (!this.hasRecordForId(type, id)) {
@@ -24656,12 +24967,7 @@ var Handlebars = function() {
                 return this.typeMapFor(type).metadata;
             },
             dataWasUpdated: function(type, record) {
-                if (get(record, "isDeleted")) {
-                    return;
-                }
-                if (get(record, "isLoaded")) {
-                    this.recordArrayManager.recordDidChange(record);
-                }
+                this.recordArrayManager.recordDidChange(record);
             },
             scheduleSave: function(record, resolver) {
                 record.adapterWillCommit();
@@ -24680,7 +24986,7 @@ var Handlebars = function() {
                     } else {
                         operation = "updateRecord";
                     }
-                    _commit(adapter, this, operation, record, resolver);
+                    resolver.resolve(_commit(adapter, this, operation, record));
                 }, this);
             },
             didSaveRecord: function(record, data) {
@@ -24723,13 +25029,18 @@ var Handlebars = function() {
                 return record;
             },
             modelFor: function(key) {
-                if (typeof key !== "string") {
-                    return key;
+                var factory;
+                if (typeof key === "string") {
+                    var normalizedKey = this.container.normalize("model:" + key);
+                    factory = this.container.lookupFactory(normalizedKey);
+                    if (!factory) {
+                        throw new Ember.Error("No model was found for '" + key + "'");
+                    }
+                    factory.typeKey = normalizedKey.split(":", 2)[1];
+                } else {
+                    factory = key;
                 }
-                var factory = this.container.lookupFactory("model:" + key);
-                Ember.assert("No model was found for '" + key + "'", factory);
                 factory.store = this;
-                factory.typeKey = key;
                 return factory;
             },
             push: function(type, data, _partial) {
@@ -24740,7 +25051,14 @@ var Handlebars = function() {
                 return this.recordForId(type, data.id);
             },
             pushPayload: function(type, payload) {
-                var serializer = this.serializerFor(type);
+                var serializer;
+                if (!payload) {
+                    payload = type;
+                    serializer = defaultSerializer(this.container);
+                    Ember.assert("You cannot use `store#pushPayload` without a type unless your default serializer defines `pushPayload`", serializer.pushPayload);
+                } else {
+                    serializer = this.serializerFor(type);
+                }
                 serializer.pushPayload(this, payload);
             },
             update: function(type, data) {
@@ -24852,6 +25170,7 @@ var Handlebars = function() {
                     deserializeRecordId(store, data, key, relationship, value);
                 } else if (kind === "hasMany") {
                     deserializeRecordIds(store, data, key, relationship, value);
+                    addUnsavedRecords(record, key, value);
                 }
             });
             return data;
@@ -24880,6 +25199,11 @@ var Handlebars = function() {
                 deserializeRecordId(store, ids, i, relationship, ids[i]);
             }
         }
+        function addUnsavedRecords(record, key, data) {
+            if (record) {
+                data.pushObjects(record.get(key).filterBy("isNew"));
+            }
+        }
         DS.PromiseArray = Ember.ArrayProxy.extend(Ember.PromiseProxyMixin);
         DS.PromiseObject = Ember.ObjectProxy.extend(Ember.PromiseProxyMixin);
         function promiseObject(promise) {
@@ -24898,6 +25222,9 @@ var Handlebars = function() {
         function serializerFor(container, type, defaultSerializer) {
             return container.lookup("serializer:" + type) || container.lookup("serializer:application") || container.lookup("serializer:" + defaultSerializer) || container.lookup("serializer:_default");
         }
+        function defaultSerializer(container) {
+            return container.lookup("serializer:application") || container.lookup("serializer:_default");
+        }
         function serializerForAdapter(adapter, type) {
             var serializer = adapter.serializer, defaultSerializer = adapter.defaultSerializer, container = adapter.container;
             if (container && serializer === undefined) {
@@ -24912,9 +25239,9 @@ var Handlebars = function() {
             }
             return serializer;
         }
-        function _find(adapter, store, type, id, resolver) {
+        function _find(adapter, store, type, id) {
             var promise = adapter.find(store, type, id), serializer = serializerForAdapter(adapter, type);
-            return resolve(promise).then(function(payload) {
+            return resolve(promise, "DS: Handle Adapter#find of " + type + " with id: " + id).then(function(payload) {
                 Ember.assert("You made a request for a " + type.typeKey + " with id " + id + ", but the adapter's response did not have any data", payload);
                 payload = serializer.extract(store, type, payload, id, "find");
                 return store.push(type, payload);
@@ -24922,53 +25249,54 @@ var Handlebars = function() {
                 var record = store.getById(type, id);
                 record.notFound();
                 throw error;
-            }).then(resolver.resolve, resolver.reject);
+            }, "DS: Extract payload of '" + type + "'");
         }
-        function _findMany(adapter, store, type, ids, owner, resolver) {
+        function _findMany(adapter, store, type, ids, owner) {
             var promise = adapter.findMany(store, type, ids, owner), serializer = serializerForAdapter(adapter, type);
-            return resolve(promise).then(function(payload) {
+            return resolve(promise, "DS: Handle Adapter#findMany of " + type).then(function(payload) {
                 payload = serializer.extract(store, type, payload, null, "findMany");
                 Ember.assert("The response from a findMany must be an Array, not " + Ember.inspect(payload), Ember.typeOf(payload) === "array");
                 store.pushMany(type, payload);
-            }).then(resolver.resolve, resolver.reject);
+            }, null, "DS: Extract payload of " + type);
         }
-        function _findHasMany(adapter, store, record, link, relationship, resolver) {
+        function _findHasMany(adapter, store, record, link, relationship) {
             var promise = adapter.findHasMany(store, record, link, relationship), serializer = serializerForAdapter(adapter, relationship.type);
-            return resolve(promise).then(function(payload) {
+            return resolve(promise, "DS: Handle Adapter#findHasMany of " + record + " : " + relationship.type).then(function(payload) {
                 payload = serializer.extract(store, relationship.type, payload, null, "findHasMany");
                 Ember.assert("The response from a findHasMany must be an Array, not " + Ember.inspect(payload), Ember.typeOf(payload) === "array");
                 var records = store.pushMany(relationship.type, payload);
                 record.updateHasMany(relationship.key, records);
-            }).then(resolver.resolve, resolver.reject);
+            }, null, "DS: Extract payload of " + record + " : hasMany " + relationship.type);
         }
-        function _findBelongsTo(adapter, store, record, link, relationship, resolver) {
+        function _findBelongsTo(adapter, store, record, link, relationship) {
             var promise = adapter.findBelongsTo(store, record, link, relationship), serializer = serializerForAdapter(adapter, relationship.type);
-            return resolve(promise).then(function(payload) {
+            return resolve(promise, "DS: Handle Adapter#findBelongsTo of " + record + " : " + relationship.type).then(function(payload) {
                 payload = serializer.extract(store, relationship.type, payload, null, "findBelongsTo");
                 var record = store.push(relationship.type, payload);
                 record.updateBelongsTo(relationship.key, record);
-            }).then(resolver.resolve, resolver.reject);
+                return record;
+            }, null, "DS: Extract payload of " + record + " : " + relationship.type);
         }
-        function _findAll(adapter, store, type, sinceToken, resolver) {
+        function _findAll(adapter, store, type, sinceToken) {
             var promise = adapter.findAll(store, type, sinceToken), serializer = serializerForAdapter(adapter, type);
-            return resolve(promise).then(function(payload) {
+            return resolve(promise, "DS: Handle Adapter#findAll of " + type).then(function(payload) {
                 payload = serializer.extract(store, type, payload, null, "findAll");
                 Ember.assert("The response from a findAll must be an Array, not " + Ember.inspect(payload), Ember.typeOf(payload) === "array");
                 store.pushMany(type, payload);
                 store.didUpdateAll(type);
                 return store.all(type);
-            }).then(resolver.resolve, resolver.reject);
+            }, null, "DS: Extract payload of findAll " + type);
         }
-        function _findQuery(adapter, store, type, query, recordArray, resolver) {
+        function _findQuery(adapter, store, type, query, recordArray) {
             var promise = adapter.findQuery(store, type, query, recordArray), serializer = serializerForAdapter(adapter, type);
-            return resolve(promise).then(function(payload) {
-                payload = serializer.extract(store, type, payload, null, "findAll");
+            return resolve(promise, "DS: Handle Adapter#findQuery of " + type).then(function(payload) {
+                payload = serializer.extract(store, type, payload, null, "findQuery");
                 Ember.assert("The response from a findQuery must be an Array, not " + Ember.inspect(payload), Ember.typeOf(payload) === "array");
                 recordArray.load(payload);
                 return recordArray;
-            }).then(resolver.resolve, resolver.reject);
+            }, null, "DS: Extract payload of findQuery " + type);
         }
-        function _commit(adapter, store, operation, record, resolver) {
+        function _commit(adapter, store, operation, record) {
             var type = record.constructor, promise = adapter[operation](store, type, record), serializer = serializerForAdapter(adapter, type);
             Ember.assert("Your adapter's '" + operation + "' method must return a promise, but it returned " + promise, isThenable(promise));
             return promise.then(function(payload) {
@@ -24984,7 +25312,7 @@ var Handlebars = function() {
                     store.recordWasError(record, reason);
                 }
                 throw reason;
-            }).then(resolver.resolve, resolver.reject);
+            }, "DS: Extract and notify about " + operation + " completion of " + record);
         }
     })();
     (function() {
@@ -25029,8 +25357,8 @@ var Handlebars = function() {
                 willCommit: function(record) {
                     record.transitionTo("inFlight");
                 },
-                reloadRecord: function(record, resolver) {
-                    get(record, "store").reloadRecord(record, resolver);
+                reloadRecord: function(record, resolve) {
+                    resolve(get(record, "store").reloadRecord(record));
                 },
                 rolledBack: function(record) {
                     record.transitionTo("loaded.saved");
@@ -25053,8 +25381,7 @@ var Handlebars = function() {
                     record.transitionTo("saved");
                     record.send("invokeLifecycleCallbacks", dirtyType);
                 },
-                becameInvalid: function(record, errors) {
-                    set(record, "errors", errors);
+                becameInvalid: function(record) {
                     record.transitionTo("invalid");
                     record.send("invokeLifecycleCallbacks");
                 },
@@ -25070,17 +25397,12 @@ var Handlebars = function() {
                     record.clearRelationships();
                 },
                 didSetProperty: function(record, context) {
-                    var errors = get(record, "errors"), key = context.name;
-                    set(errors, key, null);
-                    if (!hasDefinedProperties(errors)) {
-                        record.send("becameValid");
-                    }
+                    get(record, "errors").remove(context.name);
                     didSetProperty(record, context);
                 },
                 becomeDirty: Ember.K,
-                rollback: function(record) {
-                    record.send("becameValid");
-                    record.send("rollback");
+                rolledBack: function(record) {
+                    get(record, "errors").clear();
                 },
                 becameValid: function(record) {
                     record.transitionTo("uncommitted");
@@ -25203,8 +25525,8 @@ var Handlebars = function() {
                     willCommit: function(record) {
                         record.transitionTo("updated.inFlight");
                     },
-                    reloadRecord: function(record, resolver) {
-                        get(record, "store").reloadRecord(record, resolver);
+                    reloadRecord: function(record, resolve) {
+                        resolve(get(record, "store").reloadRecord(record));
                     },
                     deleteRecord: function(record) {
                         record.transitionTo("deleted.uncommitted");
@@ -25216,7 +25538,8 @@ var Handlebars = function() {
                     },
                     didCommit: function(record) {
                         record.send("invokeLifecycleCallbacks", get(record, "lastDirtyType"));
-                    }
+                    },
+                    notFound: Ember.K
                 },
                 created: createdState,
                 updated: updatedState
@@ -25228,8 +25551,7 @@ var Handlebars = function() {
                 isLoaded: true,
                 isDirty: true,
                 setup: function(record) {
-                    var store = get(record, "store");
-                    store.recordArrayManager.remove(record);
+                    record.updateRecordArrays();
                 },
                 uncommitted: {
                     willCommit: function(record) {
@@ -25295,10 +25617,97 @@ var Handlebars = function() {
         DS.RootState = RootState;
     })();
     (function() {
+        var get = Ember.get, isEmpty = Ember.isEmpty;
+        DS.Errors = Ember.Object.extend(Ember.Enumerable, Ember.Evented, {
+            registerHandlers: function(target, becameInvalid, becameValid) {
+                this.on("becameInvalid", target, becameInvalid);
+                this.on("becameValid", target, becameValid);
+            },
+            errorsByAttributeName: Ember.reduceComputed("content", {
+                initialValue: function() {
+                    return Ember.MapWithDefault.create({
+                        defaultValue: function() {
+                            return Ember.A();
+                        }
+                    });
+                },
+                addedItem: function(errors, error) {
+                    errors.get(error.attribute).pushObject(error);
+                    return errors;
+                },
+                removedItem: function(errors, error) {
+                    errors.get(error.attribute).removeObject(error);
+                    return errors;
+                }
+            }),
+            errorsFor: function(attribute) {
+                return get(this, "errorsByAttributeName").get(attribute);
+            },
+            messages: Ember.computed.mapBy("content", "message"),
+            content: Ember.computed(function() {
+                return Ember.A();
+            }),
+            unknownProperty: function(attribute) {
+                var errors = this.errorsFor(attribute);
+                if (isEmpty(errors)) {
+                    return null;
+                }
+                return errors;
+            },
+            nextObject: function(index, previousObject, context) {
+                return get(this, "content").objectAt(index);
+            },
+            length: Ember.computed.oneWay("content.length").readOnly(),
+            isEmpty: Ember.computed.not("length").readOnly(),
+            add: function(attribute, messages) {
+                var wasEmpty = get(this, "isEmpty");
+                messages = this._findOrCreateMessages(attribute, messages);
+                get(this, "content").addObjects(messages);
+                this.notifyPropertyChange(attribute);
+                this.enumerableContentDidChange();
+                if (wasEmpty && !get(this, "isEmpty")) {
+                    this.trigger("becameInvalid");
+                }
+            },
+            _findOrCreateMessages: function(attribute, messages) {
+                var errors = this.errorsFor(attribute);
+                return Ember.makeArray(messages).map(function(message) {
+                    return errors.findBy("message", message) || {
+                        attribute: attribute,
+                        message: message
+                    };
+                });
+            },
+            remove: function(attribute) {
+                if (get(this, "isEmpty")) {
+                    return;
+                }
+                var content = get(this, "content").rejectBy("attribute", attribute);
+                get(this, "content").setObjects(content);
+                this.notifyPropertyChange(attribute);
+                this.enumerableContentDidChange();
+                if (get(this, "isEmpty")) {
+                    this.trigger("becameValid");
+                }
+            },
+            clear: function() {
+                if (get(this, "isEmpty")) {
+                    return;
+                }
+                get(this, "content").clear();
+                this.enumerableContentDidChange();
+                this.trigger("becameValid");
+            },
+            has: function(attribute) {
+                return !isEmpty(this.errorsFor(attribute));
+            }
+        });
+    })();
+    (function() {
         var get = Ember.get, set = Ember.set, merge = Ember.merge, once = Ember.run.once;
-        var retrieveFromCurrentState = Ember.computed(function(key, value) {
+        var retrieveFromCurrentState = Ember.computed("currentState", function(key, value) {
             return get(get(this, "currentState"), key);
-        }).property("currentState").readOnly();
+        }).readOnly();
         DS.Model = Ember.Object.extend(Ember.Evented, {
             isEmpty: retrieveFromCurrentState,
             isLoading: retrieveFromCurrentState,
@@ -25327,7 +25736,6 @@ var Handlebars = function() {
                 return serializer.serialize(this, options);
             },
             didLoad: Ember.K,
-            didReload: Ember.K,
             didUpdate: Ember.K,
             didCreate: Ember.K,
             didDelete: Ember.K,
@@ -25340,6 +25748,13 @@ var Handlebars = function() {
             _data: null,
             init: function() {
                 set(this, "currentState", DS.RootState.empty);
+                var errors = DS.Errors.create();
+                errors.registerHandlers(this, function() {
+                    this.send("becameInvalid");
+                }, function() {
+                    this.send("becameValid");
+                });
+                set(this, "errors", errors);
                 this._super();
                 this._setup();
             },
@@ -25384,6 +25799,7 @@ var Handlebars = function() {
                 for (i = 0, l = setups.length; i < l; i++) {
                     setups[i].setup(this);
                 }
+                this.updateRecordArraysLater();
             },
             _unhandledEvent: function(state, name, context) {
                 var errorMessage = "Attempted to handle event `" + name + "` ";
@@ -25415,6 +25831,10 @@ var Handlebars = function() {
             deleteRecord: function() {
                 this.send("deleteRecord");
             },
+            destroyRecord: function() {
+                this.deleteRecord();
+                return this.save();
+            },
             unloadRecord: function() {
                 Ember.assert("You can only unload a loaded, non-dirty record.", !get(this, "isDirty"));
                 this.send("unloadRecord");
@@ -25432,10 +25852,7 @@ var Handlebars = function() {
                 }, this);
             },
             updateRecordArrays: function() {
-                var store = get(this, "store");
-                if (store) {
-                    store.dataWasUpdated(this.constructor, this);
-                }
+                get(this, "store").dataWasUpdated(this.constructor, this);
             },
             changedAttributes: function() {
                 var oldData = get(this, "_data"), newData = get(this, "_attributes"), diffData = {}, prop;
@@ -25540,6 +25957,9 @@ var Handlebars = function() {
                     this._inFlightAttributes = {};
                     set(this, "isError", false);
                 }
+                if (!get(this, "isValid")) {
+                    this._inFlightAttributes = {};
+                }
                 this.send("rolledBack");
                 this.suspendRelationshipObservers(function() {
                     this.notifyPropertyChange("data");
@@ -25563,7 +25983,8 @@ var Handlebars = function() {
                 }
             },
             save: function() {
-                var resolver = Ember.RSVP.defer();
+                var promiseLabel = "DS: Model#save " + this;
+                var resolver = Ember.RSVP.defer(promiseLabel);
                 this.get("store").scheduleSave(this, resolver);
                 this._inFlightAttributes = this._attributes;
                 this._attributes = {};
@@ -25573,18 +25994,20 @@ var Handlebars = function() {
             },
             reload: function() {
                 set(this, "isReloading", true);
-                var resolver = Ember.RSVP.defer(), record = this;
-                resolver.promise = resolver.promise.then(function() {
+                var record = this;
+                var promiseLabel = "DS: Model#reload of " + this;
+                var promise = new Ember.RSVP.Promise(function(resolve) {
+                    record.send("reloadRecord", resolve);
+                }, promiseLabel).then(function() {
                     record.set("isReloading", false);
                     record.set("isError", false);
                     return record;
                 }, function(reason) {
                     record.set("isError", true);
                     throw reason;
-                });
-                this.send("reloadRecord", resolver);
+                }, "DS: Model#reload complete, update flags");
                 return DS.PromiseObject.create({
-                    promise: resolver.promise
+                    promise: promise
                 });
             },
             adapterDidUpdateAttribute: function(attributeName, value) {
@@ -25597,7 +26020,14 @@ var Handlebars = function() {
                 this.updateRecordArraysLater();
             },
             adapterDidInvalidate: function(errors) {
-                this.send("becameInvalid", errors);
+                var recordErrors = get(this, "errors");
+                function addError(name) {
+                    if (errors[name]) {
+                        recordErrors.add(name, errors[name]);
+                    }
+                }
+                this.eachAttribute(addError);
+                this.eachRelationship(addError);
             },
             adapterDidError: function() {
                 this.send("becameError");
@@ -26052,19 +26482,21 @@ var Handlebars = function() {
         var get = Ember.get, set = Ember.set, isNone = Ember.isNone;
         function asyncBelongsTo(type, options, meta) {
             return Ember.computed(function(key, value) {
-                var data = get(this, "data"), store = get(this, "store");
+                var data = get(this, "data"), store = get(this, "store"), promiseLabel = "DS: Async belongsTo " + this + " : " + key;
                 if (arguments.length === 2) {
                     Ember.assert("You can only add a '" + type + "' record to this relationship", !value || value instanceof store.modelFor(type));
-                    return value === undefined ? null : value;
+                    return value === undefined ? null : DS.PromiseObject.create({
+                        promise: Ember.RSVP.resolve(value, promiseLabel)
+                    });
                 }
                 var link = data.links && data.links[key], belongsTo = data[key];
                 if (!isNone(belongsTo)) {
-                    var promise = store.fetchRecord(belongsTo) || Ember.RSVP.resolve(belongsTo);
+                    var promise = store.fetchRecord(belongsTo) || Ember.RSVP.resolve(belongsTo, promiseLabel);
                     return DS.PromiseObject.create({
                         promise: promise
                     });
                 } else if (link) {
-                    var resolver = Ember.RSVP.defer();
+                    var resolver = Ember.RSVP.defer("DS: Async belongsTo (link) " + this + " : " + key);
                     store.findBelongsTo(this, link, meta, resolver);
                     return DS.PromiseObject.create({
                         promise: resolver.promise
@@ -26145,21 +26577,24 @@ var Handlebars = function() {
         var get = Ember.get, set = Ember.set, setProperties = Ember.setProperties;
         function asyncHasMany(type, options, meta) {
             return Ember.computed(function(key, value) {
-                if (this._relationships[key]) {
-                    return this._relationships[key];
+                var relationship = this._relationships[key], promiseLabel = "DS: Async hasMany " + this + " : " + key;
+                if (!relationship) {
+                    var resolver = Ember.RSVP.defer(promiseLabel);
+                    relationship = buildRelationship(this, key, options, function(store, data) {
+                        var link = data.links && data.links[key];
+                        var rel;
+                        if (link) {
+                            rel = store.findHasMany(this, link, meta, resolver);
+                        } else {
+                            rel = store.findMany(this, data[key], meta.type, resolver);
+                        }
+                        set(rel, "promise", resolver.promise);
+                        return rel;
+                    });
                 }
-                var resolver = Ember.RSVP.defer();
-                var relationship = buildRelationship(this, key, options, function(store, data) {
-                    var link = data.links && data.links[key];
-                    if (link) {
-                        return store.findHasMany(this, link, meta, resolver);
-                    } else {
-                        return store.findMany(this, data[key], meta.type, resolver);
-                    }
-                });
-                var promise = resolver.promise.then(function() {
+                var promise = relationship.get("promise").then(function() {
                     return relationship;
-                });
+                }, null, "DS: Async hasMany records received");
                 return DS.PromiseArray.create({
                     promise: promise
                 });
@@ -26242,7 +26677,7 @@ var Handlebars = function() {
                     if (possibleRelationships.length === 0) {
                         return null;
                     }
-                    Ember.assert("You defined the '" + name + "' relationship on " + this + ", but multiple possible inverse relationships of type " + this + " were found on " + inverseType + ".", possibleRelationships.length === 1);
+                    Ember.assert("You defined the '" + name + "' relationship on " + this + ", but multiple possible inverse relationships of type " + this + " were found on " + inverseType + ". Look at http://emberjs.com/guides/models/defining-models/#toc_explicit-inverses for how to explicitly specify inverses", possibleRelationships.length === 1);
                     inverseName = possibleRelationships[0].name;
                     inverseKind = possibleRelationships[0].kind;
                 }
@@ -26387,20 +26822,36 @@ var Handlebars = function() {
             },
             updateRecordArrays: function() {
                 forEach(this.changedRecords, function(record) {
-                    var type = record.constructor, recordArrays = this.filteredRecordArrays.get(type), filter;
-                    forEach(recordArrays, function(array) {
-                        filter = get(array, "filterFunction");
-                        this.updateRecordArray(array, filter, type, record);
-                    }, this);
-                    var manyArrays = record._loadingRecordArrays;
-                    if (manyArrays) {
-                        for (var i = 0, l = manyArrays.length; i < l; i++) {
-                            manyArrays[i].loadedRecord();
-                        }
-                        record._loadingRecordArrays = [];
+                    if (get(record, "isDeleted")) {
+                        this._recordWasDeleted(record);
+                    } else {
+                        this._recordWasChanged(record);
                     }
                 }, this);
                 this.changedRecords = [];
+            },
+            _recordWasDeleted: function(record) {
+                var recordArrays = record._recordArrays;
+                if (!recordArrays) {
+                    return;
+                }
+                forEach(recordArrays, function(array) {
+                    array.removeRecord(record);
+                });
+            },
+            _recordWasChanged: function(record) {
+                var type = record.constructor, recordArrays = this.filteredRecordArrays.get(type), filter;
+                forEach(recordArrays, function(array) {
+                    filter = get(array, "filterFunction");
+                    this.updateRecordArray(array, filter, type, record);
+                }, this);
+                var manyArrays = record._loadingRecordArrays;
+                if (manyArrays) {
+                    for (var i = 0, l = manyArrays.length; i < l; i++) {
+                        manyArrays[i].loadedRecord();
+                    }
+                    record._loadingRecordArrays = [];
+                }
             },
             updateRecordArray: function(array, filter, type, record) {
                 var shouldBeInArray;
@@ -26417,15 +26868,6 @@ var Handlebars = function() {
                     recordArrays.remove(array);
                     array.removeRecord(record);
                 }
-            },
-            remove: function(record) {
-                var recordArrays = record._recordArrays;
-                if (!recordArrays) {
-                    return;
-                }
-                forEach(recordArrays, function(array) {
-                    array.removeRecord(record);
-                });
             },
             updateFilter: function(array, type, filter) {
                 var typeMap = this.store.typeMapFor(type), records = typeMap.records, record;
@@ -26447,6 +26889,35 @@ var Handlebars = function() {
                     arrays.add(manyArray);
                 }, this);
                 return manyArray;
+            },
+            createRecordArray: function(type) {
+                var array = DS.RecordArray.create({
+                    type: type,
+                    content: Ember.A(),
+                    store: this.store,
+                    isLoaded: true
+                });
+                this.registerFilteredRecordArray(array, type);
+                return array;
+            },
+            createFilteredRecordArray: function(type, filter) {
+                var array = DS.FilteredRecordArray.create({
+                    type: type,
+                    content: Ember.A(),
+                    store: this.store,
+                    manager: this,
+                    filterFunction: filter
+                });
+                this.registerFilteredRecordArray(array, type, filter);
+                return array;
+            },
+            createAdapterPopulatedRecordArray: function(type, query) {
+                return DS.AdapterPopulatedRecordArray.create({
+                    type: type,
+                    query: query,
+                    content: Ember.A(),
+                    store: this.store
+                });
             },
             registerFilteredRecordArray: function(array, type, filter) {
                 var recordArrays = this.filteredRecordArrays.get(type);
@@ -26472,7 +26943,7 @@ var Handlebars = function() {
             }
         };
         DS.InvalidError.prototype = Ember.create(Error.prototype);
-        DS.Adapter = Ember.Object.extend(DS._Mappable, {
+        DS.Adapter = Ember.Object.extend({
             find: Ember.required(Function),
             findAll: null,
             findQuery: null,
@@ -26625,11 +27096,11 @@ var Handlebars = function() {
                             resolve(callback.call(context));
                         }, get(adapter, "latency"));
                     } else {
-                        Ember.run.once(function() {
+                        Ember.run.schedule("actions", null, function() {
                             resolve(callback.call(context));
                         });
                     }
-                });
+                }, "DS: FixtureAdapter#simulateRemoteCall");
             }
         });
     })();
@@ -26643,11 +27114,11 @@ var Handlebars = function() {
         DS.RESTSerializer = DS.JSONSerializer.extend({
             normalize: function(type, hash, prop) {
                 this.normalizeId(hash);
-                this.normalizeUsingDeclaredMapping(type, hash);
                 this.normalizeAttributes(type, hash);
                 this.normalizeRelationships(type, hash);
+                this.normalizeUsingDeclaredMapping(type, hash);
                 if (this.normalizeHash && this.normalizeHash[prop]) {
-                    return this.normalizeHash[prop](hash);
+                    this.normalizeHash[prop](hash);
                 }
                 return this._super(type, hash, prop);
             },
@@ -26667,8 +27138,13 @@ var Handlebars = function() {
                 if (attrs) {
                     for (key in attrs) {
                         payloadKey = attrs[key];
-                        hash[key] = hash[payloadKey];
-                        delete hash[payloadKey];
+                        if (payloadKey && payloadKey.key) {
+                            payloadKey = payloadKey.key;
+                        }
+                        if (typeof payloadKey === "string") {
+                            hash[key] = hash[payloadKey];
+                            delete hash[payloadKey];
+                        }
                     }
                 }
             },
@@ -26746,7 +27222,7 @@ var Handlebars = function() {
                 payload = this.normalizePayload(null, payload);
                 for (var prop in payload) {
                     var typeName = this.typeForRoot(prop), type = store.modelFor(typeName);
-                    var normalizedArray = map.call(payload[prop], function(hash) {
+                    var normalizedArray = map.call(Ember.makeArray(payload[prop]), function(hash) {
                         return this.normalize(type, hash, prop);
                     }, this);
                     store.pushMany(typeName, normalizedArray);
@@ -26792,7 +27268,7 @@ var Handlebars = function() {
                     data: query
                 });
             },
-            findMany: function(store, type, ids, owner) {
+            findMany: function(store, type, ids) {
                 return this.ajax(this.buildURL(type.typeKey), "GET", {
                     data: {
                         ids: ids
@@ -26800,7 +27276,10 @@ var Handlebars = function() {
                 });
             },
             findHasMany: function(store, record, url) {
-                var id = get(record, "id"), type = record.constructor.typeKey;
+                var host = get(this, "host"), id = get(record, "id"), type = record.constructor.typeKey;
+                if (host && url.charAt(0) === "/" && url.charAt(1) !== "/") {
+                    url = host + url;
+                }
                 return this.ajax(this.urlPrefix(url, this.buildURL(type, id)), "GET");
             },
             findBelongsTo: function(store, record, url) {
@@ -26883,23 +27362,7 @@ var Handlebars = function() {
             ajax: function(url, type, hash) {
                 var adapter = this;
                 return new Ember.RSVP.Promise(function(resolve, reject) {
-                    hash = hash || {};
-                    hash.url = url;
-                    hash.type = type;
-                    hash.dataType = "json";
-                    hash.context = adapter;
-                    if (hash.data && type !== "GET") {
-                        hash.contentType = "application/json; charset=utf-8";
-                        hash.data = JSON.stringify(hash.data);
-                    }
-                    if (adapter.headers !== undefined) {
-                        var headers = adapter.headers;
-                        hash.beforeSend = function(xhr) {
-                            forEach.call(Ember.keys(headers), function(key) {
-                                xhr.setRequestHeader(key, headers[key]);
-                            });
-                        };
-                    }
+                    hash = adapter.ajaxOptions(url, type, hash);
                     hash.success = function(json) {
                         Ember.run(null, resolve, json);
                     };
@@ -26907,7 +27370,27 @@ var Handlebars = function() {
                         Ember.run(null, reject, adapter.ajaxError(jqXHR));
                     };
                     Ember.$.ajax(hash);
-                });
+                }, "DS: RestAdapter#ajax " + type + " to " + url);
+            },
+            ajaxOptions: function(url, type, hash) {
+                hash = hash || {};
+                hash.url = url;
+                hash.type = type;
+                hash.dataType = "json";
+                hash.context = this;
+                if (hash.data && type !== "GET") {
+                    hash.contentType = "application/json; charset=utf-8";
+                    hash.data = JSON.stringify(hash.data);
+                }
+                if (this.headers !== undefined) {
+                    var headers = this.headers;
+                    hash.beforeSend = function(xhr) {
+                        forEach.call(Ember.keys(headers), function(key) {
+                            xhr.setRequestHeader(key, headers[key]);
+                        });
+                    };
+                }
+                return hash;
             }
         });
     })();
@@ -26966,15 +27449,15 @@ var Handlebars = function() {
         var BLANK_REGEX = /^\s*$/;
         function loadUncountable(rules, uncountable) {
             for (var i = 0, length = uncountable.length; i < length; i++) {
-                rules.uncountable[uncountable[i]] = true;
+                rules.uncountable[uncountable[i].toLowerCase()] = true;
             }
         }
         function loadIrregular(rules, irregularPairs) {
             var pair;
             for (var i = 0, length = irregularPairs.length; i < length; i++) {
                 pair = irregularPairs[i];
-                rules.irregular[pair[0]] = pair[1];
-                rules.irregularInverse[pair[1]] = pair[0];
+                rules.irregular[pair[0].toLowerCase()] = pair[1];
+                rules.irregularInverse[pair[1].toLowerCase()] = pair[0];
             }
         }
         function Inflector(ruleSet) {
@@ -26993,13 +27476,13 @@ var Handlebars = function() {
         }
         Inflector.prototype = {
             plural: function(regex, string) {
-                this.rules.plurals.push([ regex, string ]);
+                this.rules.plurals.push([ regex, string.toLowerCase() ]);
             },
             singular: function(regex, string) {
-                this.rules.singular.push([ regex, string ]);
+                this.rules.singular.push([ regex, string.toLowerCase() ]);
             },
             uncountable: function(string) {
-                loadUncountable(this.rules, [ string ]);
+                loadUncountable(this.rules, [ string.toLowerCase() ]);
             },
             irregular: function(singular, plural) {
                 loadIrregular(this.rules, [ [ singular, plural ] ]);
@@ -27080,16 +27563,7 @@ var Handlebars = function() {
                     return key;
                 }
             },
-            serializeHasMany: function(record, json, relationship) {
-                var key = relationship.key, attrs = get(this, "attrs"), embed = attrs && attrs[key] && attrs[key].embedded === "always";
-                if (embed) {
-                    json[this.keyForAttribute(key)] = get(record, key).map(function(relation) {
-                        var data = relation.serialize(), primaryKey = get(this, "primaryKey");
-                        data[primaryKey] = get(relation, primaryKey);
-                        return data;
-                    }, this);
-                }
-            },
+            serializeHasMany: Ember.K,
             serializeIntoHash: function(data, type, record, options) {
                 var root = Ember.String.decamelize(type.typeKey);
                 data[root] = this.serialize(record, options);
@@ -27103,6 +27577,22 @@ var Handlebars = function() {
                 var camelized = Ember.String.camelize(root);
                 return Ember.String.singularize(camelized);
             },
+            normalize: function(type, hash, prop) {
+                this.normalizeLinks(hash);
+                return this._super(type, hash, prop);
+            },
+            normalizeLinks: function(data) {
+                if (data.links) {
+                    var links = data.links;
+                    for (var link in links) {
+                        var camelizedLink = Ember.String.camelize(link);
+                        if (camelizedLink !== link) {
+                            links[camelizedLink] = links[link];
+                            delete links[link];
+                        }
+                    }
+                }
+            },
             normalizeRelationships: function(type, hash) {
                 var payloadKey, payload;
                 if (this.keyForRelationship) {
@@ -27112,6 +27602,11 @@ var Handlebars = function() {
                             payload = hash[payloadKey];
                             if (payload && payload.type) {
                                 payload.type = this.typeForRoot(payload.type);
+                            } else if (payload && relationship.kind === "hasMany") {
+                                var self = this;
+                                forEach(payload, function(single) {
+                                    single.type = self.typeForRoot(single.type);
+                                });
                             }
                         } else {
                             payloadKey = this.keyForRelationship(key, relationship.kind);
@@ -27121,6 +27616,22 @@ var Handlebars = function() {
                         if (key !== payloadKey) {
                             delete hash[payloadKey];
                         }
+                    }, this);
+                }
+            }
+        });
+    })();
+    (function() {
+        var get = Ember.get;
+        var forEach = Ember.EnumerableUtils.forEach;
+        DS.EmbeddedRecordsMixin = Ember.Mixin.create({
+            serializeHasMany: function(record, json, relationship) {
+                var key = relationship.key, attrs = get(this, "attrs"), embed = attrs && attrs[key] && attrs[key].embedded === "always";
+                if (embed) {
+                    json[this.keyForAttribute(key)] = get(record, key).map(function(relation) {
+                        var data = relation.serialize(), primaryKey = get(this, "primaryKey");
+                        data[primaryKey] = get(relation, primaryKey);
+                        return data;
                     }, this);
                 }
             },
@@ -27157,6 +27668,8 @@ var Handlebars = function() {
                     }
                     payload[embeddedTypeKey] = payload[embeddedTypeKey] || [];
                     forEach(partial[attribute], function(data) {
+                        var embeddedType = store.modelFor(relationship.type.typeKey);
+                        updatePayloadWithEmbedded(store, serializer, embeddedType, data, payload);
                         ids.push(data[primaryKey]);
                         payload[embeddedTypeKey].push(data);
                     });

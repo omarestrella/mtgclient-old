@@ -2,132 +2,19 @@
 @import (inline) '../../vendor/ionicons/css/ionicons.css';
 
 html, body {
-    min-height: 100%;
-}
-
-.card-list {
-    position: absolute;
-    top: 0;
-    left: 0;
-
     height: 100%;
+    min-height: 100%;
 
-    overflow: scroll;
+    .container, .ember-view, .search {
+        height: 100%;
+        min-height: 100%;
 
-    .search {
-        margin: 6px -15px 0 -15px;
-        padding: 0 0 6px 0;
-
-        border-bottom: 1px solid #ccc;
-
-        button {
-            margin-left: -4px;
-        }
-    }
-
-    .filters {
-        height: 0;
-        min-height: 0;
-        max-height: 0;
-
-        overflow: hidden;
-
-        padding-top: 6px;
-
-        transition: height .2s, max-height .2s, min-height .2s;
-
-        &.show-filters {
-            min-height: 60px;
-            max-height: 300px;
-
-            border-bottom: 1px solid #ccc;
-        }
-
-        .filter-field {
-            text-align: right;
-
-            label {
-                padding-top: 6px;
-            }
-        }
-    }
-
-    a {
-        display: block;
-
-        height: 60px;
-
-        margin: 0 -15px;
-        padding: 6px;
-
-        border-bottom: 1px solid #ccc;
-
-        h4 {
-            margin: 0 15px;
-        }
-
-        &:hover {
-            background-color: #f3f3f3;
-            text-decoration: none;
-            cursor: pointer;
+        div {
+            height: 100%;
+            min-height: 100%;
         }
     }
 }
 
-.card-detail {
-    margin-top: 8px;
-
-    h1, h2, h3, h4 {
-        margin: 0;
-        padding: 0;
-    }
-
-    .card-image {
-        width: 100%;
-        max-width: 220px;
-    }
-
-    .card-text {
-        padding-top: 8px;
-    }
-}
-
-@media (max-width: 767px) {
-    .slide {
-        display: inline-block;
-
-        margin-top: 8px;
-    }
-
-    .card-list {
-        left: -800px;
-
-        .transition(left .2s);
-
-        &.show-menu {
-            left: 0;
-
-            background-color: #fff;
-
-            z-index: 10;
-
-            .box-shadow(3px 0px 5px -1px rgba(0, 0, 0, 0.8))
-        }
-    }
-
-    .outlet {
-        left: 0;
-
-        .transition(left .3s);
-
-        &.show-menu {
-            left: 55%;
-        }
-    }
-}
-
-@media (min-width: 768px) {
-    .slide {
-        display: none;
-    }
-}
+@import 'card-list';
+@import 'card-detail';

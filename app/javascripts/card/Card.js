@@ -14,7 +14,12 @@ MTG.Card = DS.Model.extend({
     multiverse_id: DS.attr(),
 
     shortSet: function () {
-        return this.get('card_set').match(/\(\w+\)/)[0].match(/\w+/)[0];
+        var set = this.get('card_set');
+        if(set) {
+            return set.match(/\(\w+\)/)[0].match(/\w+/)[0];
+        }
+
+        return '';
     }.property('card_set'),
 
     mtgImage: function () {
