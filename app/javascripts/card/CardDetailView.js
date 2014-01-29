@@ -1,4 +1,4 @@
 MTG.CardDetailView = Ember.View.extend({
-    templateName: 'card/detail',
+    templateName: 'card/card-detail',
     classNames: ['card-detail']
 });

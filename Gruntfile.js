@@ -74,6 +74,7 @@ module.exports = function (grunt) {
                         'vendor/handlebars/handlebars.js',
                         'vendor/ember/ember.js',
                         'vendor/ember-data-shim/ember-data.js',
+                        'vendor/lodash/dist/lodash.js',
                         'vendor/requirejs/require.js'
                     ]
                 }

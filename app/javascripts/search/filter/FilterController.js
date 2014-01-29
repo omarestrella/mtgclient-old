@@ -4,7 +4,7 @@ MTG.FilterController = Ember.ArrayController.extend({
     cmc: null,
     color: null,
 
-    searchParametersChanged: function () {
+    searchParametersChanged: _.debounce(function () {
         var promise,
             self = this;
 
@@ -30,5 +30,5 @@ MTG.FilterController = Ember.ArrayController.extend({
         promise.then(function (cards) {
             self.set('content', cards);
         })
-    }.observes('searchQuery', 'cmc')
+    }, 200).observes('searchQuery', 'cmc')
 });
