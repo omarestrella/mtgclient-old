@@ -1,3 +1,9 @@
+Ember.RSVP.configure('onerror', function(error) {
+    if (error instanceof Error) {
+        Ember.Logger.error(error.stack);
+    }
+});
+
 var MTG = Ember.Application.create({
     LOG_ACTIVE_GENERATION: true,
     LOG_MODULE_RESOLVER: true,
@@ -14,12 +20,12 @@ MTG.initializer({
         application.set('container', container);
         application.set('store', container.lookup('store:main'));
         application.set('router', container.lookup('router:main'));
-    }
-});
 
-Ember.RSVP.configure('onerror', function(error) {
-    if (error instanceof Error) {
-        Ember.Logger.error(error.stack);
+        application.register('session:application', MTG.Session);
+        application.set('session', container.lookup('session:application'));
+
+        application.inject('route', 'session', 'session:application');
+        application.inject('controller', 'session', 'session:application');
     }
 });
 

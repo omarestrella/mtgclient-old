@@ -1,5 +1,10 @@
 (function(__exports__) {
     "use strict";
+    Ember.RSVP.configure("onerror", function(error) {
+        if (error instanceof Error) {
+            Ember.Logger.error(error.stack);
+        }
+    });
     var MTG = Ember.Application.create({
         LOG_ACTIVE_GENERATION: true,
         LOG_MODULE_RESOLVER: true,
@@ -14,11 +19,10 @@
             application.set("container", container);
             application.set("store", container.lookup("store:main"));
             application.set("router", container.lookup("router:main"));
-        }
-    });
-    Ember.RSVP.configure("onerror", function(error) {
-        if (error instanceof Error) {
-            Ember.Logger.error(error.stack);
+            application.register("session:application", MTG.Session);
+            application.set("session", container.lookup("session:application"));
+            application.inject("route", "session", "session:application");
+            application.inject("controller", "session", "session:application");
         }
     });
     Ember.Handlebars.registerBoundHelper("breaklines", function(text) {
@@ -32,11 +36,6 @@
 
 (function() {
     "use strict";
-    MTG.FilterController = Ember.Controller.extend({});
-})();
-
-(function() {
-    "use strict";
     MTG.Router.map(function() {
         this.resource("search");
         this.resource("card", function() {
@@ -44,6 +43,81 @@
                 path: "/:id"
             });
         });
+        this.route("login");
+    });
+})();
+
+(function() {
+    "use strict";
+    var location = function() {
+        if (window.location.hostname === "localhost") {
+            return "http://localhost:9000";
+        }
+        return "http://gatheringapi.herokuapp.com";
+    }();
+    MTG.Session = Ember.Object.extend({
+        user: null,
+        token: null,
+        tokenCookie: function() {
+            return $.cookie("token");
+        }.property(),
+        isAuthenticated: function() {
+            return this.get("token") !== null && this.get("tokenCookie");
+        }.property("token"),
+        authenticateWithToken: function() {
+            var self = this;
+            var token = $.cookie("token");
+            return new Ember.RSVP.Promise(function(resolve, reject) {
+                if (!token) {
+                    reject();
+                }
+                var path = "%@/auth/".fmt(location);
+                var data = {
+                    token: token
+                };
+                $.post(path, data).then(function(data, status, xhr) {
+                    self.handleAuthentication(data);
+                    resolve(data, xhr);
+                }, function(data, status, xhr) {
+                    reject(data, xhr);
+                });
+            });
+        },
+        authenticateWithCredentials: function(username, password) {
+            var self = this;
+            return new Ember.RSVP.Promise(function(resolve, reject) {
+                var path = "%@/auth/".fmt(location);
+                var data = {
+                    username: username,
+                    password: password
+                };
+                $.post(path, data).then(function(data, status, xhr) {
+                    if (data.token) {
+                        self.handleAuthentication(data);
+                        resolve(data, xhr);
+                    } else {
+                        reject(data, xhr);
+                    }
+                }, function(data, status, xhr) {
+                    reject(data, xhr);
+                });
+            });
+        },
+        handleAuthentication: function(data) {
+            $.cookie("token", data.token);
+            var csrftoken = $.cookie("csrftoken");
+            function csrfSafeMethod(method) {
+                return /^(GET|HEAD|OPTIONS|TRACE)$/.test(method);
+            }
+            $.ajaxSetup({
+                beforeSend: function(xhr, settings) {
+                    if (!csrfSafeMethod(settings.type)) {
+                        xhr.setRequestHeader("X-CSRFToken", csrftoken);
+                        xhr.setRequestHeader("Authorization", "Token %@".fmt(data.token));
+                    }
+                }
+            });
+        }
     });
 })();
 
@@ -124,7 +198,23 @@
 
 (function() {
     "use strict";
-    MTG.ApplicationRoute = Ember.Route.extend({});
+    MTG.ApplicationRoute = Ember.Route.extend({
+        actions: {
+            transition: function() {
+                if (!this.session.get("isAuthenticated")) {
+                    this.transitionTo("login");
+                }
+            }
+        },
+        beforeModel: function(transition) {
+            var self = this;
+            return this.session.authenticateWithToken().catch(function() {
+                if (!self.session.get("isAuthenticated")) {
+                    self.transitionTo("login");
+                }
+            });
+        }
+    });
 })();
 
 (function() {
@@ -202,74 +292,6 @@
 
 (function() {
     "use strict";
-    MTG.CardListComponent = Ember.Controller.extend({
-        needs: [ "filter" ],
-        classNames: [ "card-list" ],
-        delegate: null,
-        searching: false,
-        searchQuery: null,
-        showFilters: false,
-        actions: {
-            toggleFilters: function() {
-                this.toggleProperty("showFilters");
-            }
-        },
-        searchQueryChanged: function() {
-            this.set("controllers.filter.searchQuery", this.get("searchQuery"));
-        }.observes("searchQuery"),
-        searchContentChanged: function() {
-            this.set("content", this.get("controllers.filter.content"));
-        }.observes("controllers.filter.content"),
-        adjustHeight: function() {
-            this.setHeight();
-            $(window).on("resize", _.bind(this.setHeight, this));
-        }.on("didInsertElement"),
-        removeBindings: function() {
-            $(window).off("resize");
-        }.on("willDestroyElement"),
-        setHeight: function() {
-            var height = window.innerHeight;
-            this.$().css("height", height);
-        }
-    });
-})();
-
-(function() {
-    "use strict";
-    MTG.CardListController = Ember.Controller.extend({
-        needs: [ "filter" ],
-        classNames: [ "card-list" ],
-        delegate: null,
-        searching: false,
-        searchQuery: null,
-        showFilters: false,
-        actions: {
-            toggleFilters: function() {
-                this.toggleProperty("showFilters");
-            }
-        },
-        searchQueryChanged: function() {
-            this.set("controllers.filter.searchQuery", this.get("searchQuery"));
-        }.observes("searchQuery"),
-        searchContentChanged: function() {
-            this.set("content", this.get("controllers.filter.content"));
-        }.observes("controllers.filter.content"),
-        adjustHeight: function() {
-            this.setHeight();
-            $(window).on("resize", _.bind(this.setHeight, this));
-        }.on("didInsertElement"),
-        removeBindings: function() {
-            $(window).off("resize");
-        }.on("willDestroyElement"),
-        setHeight: function() {
-            var height = window.innerHeight;
-            this.$().css("height", height);
-        }
-    });
-})();
-
-(function() {
-    "use strict";
     MTG.CardListController = Ember.Controller.extend({
         needs: [ "filter" ],
         delegate: null,
@@ -311,30 +333,40 @@
 
 (function() {
     "use strict";
-    MTG.FilterController = Ember.ArrayController.extend({
-        searchQuery: "",
-        cmc: null,
-        color: null,
-        searchParametersChanged: function() {
-            var promise, self = this;
-            var params = {};
-            var search = this.get("searchQuery");
-            var cmc = this.get("cmc");
-            if (search) {
-                params.search = search;
+    MTG.Deck = DS.Model.extend({
+        title: DS.attr(),
+        "private": DS.attr()
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.LoginController = Ember.Controller.extend({
+        username: null,
+        password: null,
+        actions: {
+            login: function() {
+                var self = this;
+                var username = this.get("username");
+                var password = this.get("password");
+                this.session.authenticateWithCredentials(username, password).then(function() {
+                    self.transitionToRoute("index");
+                }).catch(function() {
+                    alert("Error");
+                });
             }
-            if (cmc) {
-                params.cmc = cmc;
-            }
-            if (params && Ember.keys(params).length > 0) {
-                promise = this.store.find("card", params);
-            } else {
-                promise = this.store.find("card");
-            }
-            promise.then(function(cards) {
-                self.set("content", cards);
-            });
-        }.observes("searchQuery", "cmc")
+        }
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.LoginView = Ember.View.extend({
+        classNames: [ "login" ],
+        templateName: [ "login/login" ],
+        submit: function() {
+            this.get("controller").send("login");
+        }
     });
 })();
 
