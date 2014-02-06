@@ -58,6 +58,13 @@
     MTG.Session = Ember.Object.extend({
         user: null,
         token: null,
+        init: function() {
+            Ember.$.ajaxPrefilter(function(options, originalOptions, xhr) {
+                options.xhrFields = {
+                    withCredentials: true
+                };
+            });
+        },
         tokenCookie: function() {
             return $.cookie("token");
         }.property(),
@@ -109,12 +116,13 @@
             function csrfSafeMethod(method) {
                 return /^(GET|HEAD|OPTIONS|TRACE)$/.test(method);
             }
-            $.ajaxSetup({
-                beforeSend: function(xhr, settings) {
-                    if (!csrfSafeMethod(settings.type)) {
-                        xhr.setRequestHeader("X-CSRFToken", csrftoken);
-                        xhr.setRequestHeader("Authorization", "Token %@".fmt(data.token));
-                    }
+            Ember.$.ajaxPrefilter(function(options, originalOptions, xhr) {
+                options.xhrFields = {
+                    withCredentials: true
+                };
+                xhr.setRequestHeader("Authorization", "Token %@".fmt(data.token));
+                if (!csrfSafeMethod(options.type)) {
+                    xhr.setRequestHeader("X-CSRFToken", csrftoken);
                 }
             });
         }
