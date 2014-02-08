@@ -6,6 +6,28 @@ var location = (function () {
     return 'http://gatheringapi.herokuapp.com';
 }());
 
+function setAjaxPreflight (data) {
+    $.cookie('token', data.token);
+    var csrftoken = $.cookie('csrftoken');
+
+    function csrfSafeMethod(method) {
+        // these HTTP methods do not require CSRF protection
+        return (/^(GET|HEAD|OPTIONS|TRACE)$/.test(method));
+    }
+
+    Ember.$.ajaxPrefilter(function(options, originalOptions, xhr) {
+        options.xhrFields = {
+            withCredentials: true
+        };
+
+        xhr.setRequestHeader('Authorization', 'Token %@'.fmt(data.token));
+
+        if (!csrfSafeMethod(options.type)) {
+            xhr.setRequestHeader('X-CSRFToken', csrftoken);
+        }
+    });
+}
+
 MTG.Session = Ember.Object.extend({
     user: null,
     token: null,
@@ -82,24 +104,6 @@ MTG.Session = Ember.Object.extend({
     },
 
     handleAuthentication: function (data) {
-        $.cookie('token', data.token);
-        var csrftoken = $.cookie('csrftoken');
-
-        function csrfSafeMethod(method) {
-            // these HTTP methods do not require CSRF protection
-            return (/^(GET|HEAD|OPTIONS|TRACE)$/.test(method));
-        }
-
-        Ember.$.ajaxPrefilter(function(options, originalOptions, xhr) {
-            options.xhrFields = {
-                withCredentials: true
-            };
-
-            xhr.setRequestHeader('Authorization', 'Token %@'.fmt(data.token));
-
-            if (!csrfSafeMethod(options.type)) {
-                xhr.setRequestHeader('X-CSRFToken', csrftoken);
-            }
-        });
+        setAjaxPreflight(data);
     }
 });

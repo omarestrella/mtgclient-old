@@ -11,7 +11,10 @@
         LOG_TRANSITIONS: true,
         LOG_TRANSITIONS_INTERNAL: true,
         LOG_VIEW_LOOKUPS: true,
-        modulePrefix: "mtg"
+        modulePrefix: "mtg",
+        lookupController: function(name) {
+            return this.container.lookup("controller:" + name);
+        }
     });
     MTG.initializer({
         name: "mtg",
@@ -43,6 +46,15 @@
                 path: "/:id"
             });
         });
+        this.resource("deck", function() {
+            this.route("detail", {
+                path: "/:id"
+            });
+            this.route("edit", {
+                path: "/:id/edit"
+            });
+            this.route("new");
+        });
         this.route("login");
     });
 })();
@@ -55,6 +67,22 @@
         }
         return "http://gatheringapi.herokuapp.com";
     }();
+    function setAjaxPreflight(data) {
+        $.cookie("token", data.token);
+        var csrftoken = $.cookie("csrftoken");
+        function csrfSafeMethod(method) {
+            return /^(GET|HEAD|OPTIONS|TRACE)$/.test(method);
+        }
+        Ember.$.ajaxPrefilter(function(options, originalOptions, xhr) {
+            options.xhrFields = {
+                withCredentials: true
+            };
+            xhr.setRequestHeader("Authorization", "Token %@".fmt(data.token));
+            if (!csrfSafeMethod(options.type)) {
+                xhr.setRequestHeader("X-CSRFToken", csrftoken);
+            }
+        });
+    }
     MTG.Session = Ember.Object.extend({
         user: null,
         token: null,
@@ -111,20 +139,7 @@
             });
         },
         handleAuthentication: function(data) {
-            $.cookie("token", data.token);
-            var csrftoken = $.cookie("csrftoken");
-            function csrfSafeMethod(method) {
-                return /^(GET|HEAD|OPTIONS|TRACE)$/.test(method);
-            }
-            Ember.$.ajaxPrefilter(function(options, originalOptions, xhr) {
-                options.xhrFields = {
-                    withCredentials: true
-                };
-                xhr.setRequestHeader("Authorization", "Token %@".fmt(data.token));
-                if (!csrfSafeMethod(options.type)) {
-                    xhr.setRequestHeader("X-CSRFToken", csrftoken);
-                }
-            });
+            setAjaxPreflight(data);
         }
     });
 })();
@@ -228,7 +243,15 @@
 (function() {
     "use strict";
     MTG.ApplicationView = Ember.View.extend({
-        routeChanged: function() {}.observes("MTG.router.url")
+        routeChanged: function() {
+            Ember.run.scheduleOnce("afterRender", this, this.updateActiveNavbar);
+        }.observes("MTG.router.url"),
+        updateActiveNavbar: function() {
+            var activeListItem = this.$(".nav li.active");
+            activeListItem.removeClass("active");
+            var activeLink = this.$(".nav a.active");
+            activeLink.parent().addClass("active");
+        }
     });
 })();
 
@@ -344,6 +367,66 @@
     MTG.Deck = DS.Model.extend({
         title: DS.attr(),
         "private": DS.attr()
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.DeckDetailRoute = Ember.Route.extend({
+        model: function(params) {
+            return this.store.find("deck", params.id);
+        }
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.DeckDetailView = Ember.View.extend({
+        templateName: "deck/deck-detail",
+        classNames: [ "deck-detail" ]
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.DeckIndexRoute = Ember.Route.extend({
+        model: function() {
+            return this.store.find("deck");
+        }
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.DeckIndexView = Ember.View.extend({
+        templateName: "deck/deck-list",
+        classNames: [ "deck-list" ]
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.DeckRoute = Ember.Route.extend({
+        model: function() {
+            return this.store.find("deck");
+        }
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.DeckDetailRoute = Ember.Route.extend({
+        model: function(params) {
+            return this.store.find("deck", params.id);
+        }
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.DeckDetailView = Ember.View.extend({
+        templateName: "deck/deck-detail",
+        classNames: [ "deck-detail" ]
     });
 })();
 

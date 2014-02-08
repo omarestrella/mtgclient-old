@@ -10,7 +10,11 @@ var MTG = Ember.Application.create({
     LOG_TRANSITIONS: true,
     LOG_TRANSITIONS_INTERNAL: true,
     LOG_VIEW_LOOKUPS: true,
-    modulePrefix: 'mtg'
+    modulePrefix: 'mtg',
+
+    lookupController: function (name) {
+        return this.container.lookup('controller:' + name);
+    }
 });
 
 MTG.initializer({
