@@ -13,3 +13,33 @@
         </a>
     </div>
 </div>
+
+<div class="row">
+    <div class="col-sm-3">
+        <div class="card-group">
+            <strong>Creatures</strong>
+
+            {{deck-card-list collection=creatures}}
+        </div>
+    </div>
+
+    <div class="col-sm-3">
+        <div class="card-group">
+            <strong>Instants</strong>
+
+            {{deck-card-list collection=instants}}
+        </div>
+
+        <div class="card-group">
+            <strong>Sorceries</strong>
+
+            {{deck-card-list collection=sorceries}}
+        </div>
+    </div>
+
+    <div class="col-sm-3">
+        <strong>Enchantments</strong>
+
+        {{deck-card-list collection=enchantments}}
+    </div>
+</div>

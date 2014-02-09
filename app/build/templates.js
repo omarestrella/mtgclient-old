@@ -130,6 +130,91 @@ function program1(depth0,data) {
   
 });
 
+Ember.TEMPLATES["components/deck-card-detail"] = Ember.Handlebars.template(function anonymous(Handlebars,depth0,helpers,partials,data) {
+this.compilerInfo = [4,'>= 1.0.0'];
+helpers = this.merge(helpers, Ember.Handlebars.helpers); data = data || {};
+  var buffer = '', stack1, stack2, hashTypes, hashContexts, options, escapeExpression=this.escapeExpression, helperMissing=helpers.helperMissing, self=this;
+
+function program1(depth0,data) {
+  
+  var buffer = '', hashTypes, hashContexts;
+  data.buffer.push("\n    ");
+  hashTypes = {};
+  hashContexts = {};
+  data.buffer.push(escapeExpression(helpers._triageMustache.call(depth0, "card.name", {hash:{},contexts:[depth0],types:["ID"],hashContexts:hashContexts,hashTypes:hashTypes,data:data})));
+  data.buffer.push(" (");
+  hashTypes = {};
+  hashContexts = {};
+  data.buffer.push(escapeExpression(helpers._triageMustache.call(depth0, "count", {hash:{},contexts:[depth0],types:["ID"],hashContexts:hashContexts,hashTypes:hashTypes,data:data})));
+  data.buffer.push(")\n");
+  return buffer;
+  }
+
+function program3(depth0,data) {
+  
+  var buffer = '', stack1, hashContexts, hashTypes, options;
+  data.buffer.push("\n    <img ");
+  hashContexts = {'src': depth0};
+  hashTypes = {'src': "ID"};
+  options = {hash:{
+    'src': ("imageUrl")
+  },contexts:[],types:[],hashContexts:hashContexts,hashTypes:hashTypes,data:data};
+  data.buffer.push(escapeExpression(((stack1 = helpers['bind-attr'] || (depth0 && depth0['bind-attr'])),stack1 ? stack1.call(depth0, options) : helperMissing.call(depth0, "bind-attr", options))));
+  data.buffer.push(" />\n");
+  return buffer;
+  }
+
+  hashTypes = {};
+  hashContexts = {};
+  options = {hash:{},inverse:self.noop,fn:self.program(1, program1, data),contexts:[depth0,depth0],types:["STRING","ID"],hashContexts:hashContexts,hashTypes:hashTypes,data:data};
+  stack2 = ((stack1 = helpers['link-to'] || (depth0 && depth0['link-to'])),stack1 ? stack1.call(depth0, "card.detail", "card.id", options) : helperMissing.call(depth0, "link-to", "card.detail", "card.id", options));
+  if(stack2 || stack2 === 0) { data.buffer.push(stack2); }
+  data.buffer.push("\n\n");
+  hashTypes = {};
+  hashContexts = {};
+  stack2 = helpers['if'].call(depth0, "imageUrl", {hash:{},inverse:self.noop,fn:self.program(3, program3, data),contexts:[depth0],types:["ID"],hashContexts:hashContexts,hashTypes:hashTypes,data:data});
+  if(stack2 || stack2 === 0) { data.buffer.push(stack2); }
+  data.buffer.push("\n");
+  return buffer;
+  
+});
+
+Ember.TEMPLATES["components/deck-card-list"] = Ember.Handlebars.template(function anonymous(Handlebars,depth0,helpers,partials,data) {
+this.compilerInfo = [4,'>= 1.0.0'];
+helpers = this.merge(helpers, Ember.Handlebars.helpers); data = data || {};
+  var buffer = '', stack1, hashTypes, hashContexts, helperMissing=helpers.helperMissing, escapeExpression=this.escapeExpression, self=this;
+
+function program1(depth0,data) {
+  
+  var buffer = '', stack1, hashContexts, hashTypes, options;
+  data.buffer.push("\n        <li>\n            ");
+  hashContexts = {'card': depth0,'count': depth0};
+  hashTypes = {'card': "ID",'count': "ID"};
+  options = {hash:{
+    'card': ("card"),
+    'count': ("count")
+  },contexts:[],types:[],hashContexts:hashContexts,hashTypes:hashTypes,data:data};
+  data.buffer.push(escapeExpression(((stack1 = helpers['deck-card-detail'] || (depth0 && depth0['deck-card-detail'])),stack1 ? stack1.call(depth0, options) : helperMissing.call(depth0, "deck-card-detail", options))));
+  data.buffer.push("\n        </li>\n    ");
+  return buffer;
+  }
+
+function program3(depth0,data) {
+  
+  
+  data.buffer.push("\n        None\n    ");
+  }
+
+  data.buffer.push("<ul class=\"list-unstyled\">\n    ");
+  hashTypes = {};
+  hashContexts = {};
+  stack1 = helpers.each.call(depth0, "collection", {hash:{},inverse:self.program(3, program3, data),fn:self.program(1, program1, data),contexts:[depth0],types:["ID"],hashContexts:hashContexts,hashTypes:hashTypes,data:data});
+  if(stack1 || stack1 === 0) { data.buffer.push(stack1); }
+  data.buffer.push("\n</ul>\n");
+  return buffer;
+  
+});
+
 Ember.TEMPLATES["deck"] = Ember.Handlebars.template(function anonymous(Handlebars,depth0,helpers,partials,data) {
 this.compilerInfo = [4,'>= 1.0.0'];
 helpers = this.merge(helpers, Ember.Handlebars.helpers); data = data || {};
@@ -201,7 +286,35 @@ function program1(depth0,data) {
   hashTypes = {};
   hashContexts = {};
   data.buffer.push(escapeExpression(helpers.action.call(depth0, "deleteDeck", {hash:{},contexts:[depth0],types:["ID"],hashContexts:hashContexts,hashTypes:hashTypes,data:data})));
-  data.buffer.push(">\n            Delete\n        </a>\n    </div>\n</div>\n");
+  data.buffer.push(">\n            Delete\n        </a>\n    </div>\n</div>\n\n<div class=\"row\">\n    <div class=\"col-sm-3\">\n        <div class=\"card-group\">\n            <strong>Creatures</strong>\n\n            ");
+  hashContexts = {'collection': depth0};
+  hashTypes = {'collection': "ID"};
+  options = {hash:{
+    'collection': ("creatures")
+  },contexts:[],types:[],hashContexts:hashContexts,hashTypes:hashTypes,data:data};
+  data.buffer.push(escapeExpression(((stack1 = helpers['deck-card-list'] || (depth0 && depth0['deck-card-list'])),stack1 ? stack1.call(depth0, options) : helperMissing.call(depth0, "deck-card-list", options))));
+  data.buffer.push("\n        </div>\n    </div>\n\n    <div class=\"col-sm-3\">\n        <div class=\"card-group\">\n            <strong>Instants</strong>\n\n            ");
+  hashContexts = {'collection': depth0};
+  hashTypes = {'collection': "ID"};
+  options = {hash:{
+    'collection': ("instants")
+  },contexts:[],types:[],hashContexts:hashContexts,hashTypes:hashTypes,data:data};
+  data.buffer.push(escapeExpression(((stack1 = helpers['deck-card-list'] || (depth0 && depth0['deck-card-list'])),stack1 ? stack1.call(depth0, options) : helperMissing.call(depth0, "deck-card-list", options))));
+  data.buffer.push("\n        </div>\n\n        <div class=\"card-group\">\n            <strong>Sorceries</strong>\n\n            ");
+  hashContexts = {'collection': depth0};
+  hashTypes = {'collection': "ID"};
+  options = {hash:{
+    'collection': ("sorceries")
+  },contexts:[],types:[],hashContexts:hashContexts,hashTypes:hashTypes,data:data};
+  data.buffer.push(escapeExpression(((stack1 = helpers['deck-card-list'] || (depth0 && depth0['deck-card-list'])),stack1 ? stack1.call(depth0, options) : helperMissing.call(depth0, "deck-card-list", options))));
+  data.buffer.push("\n        </div>\n    </div>\n\n    <div class=\"col-sm-3\">\n        <strong>Enchantments</strong>\n\n        ");
+  hashContexts = {'collection': depth0};
+  hashTypes = {'collection': "ID"};
+  options = {hash:{
+    'collection': ("enchantments")
+  },contexts:[],types:[],hashContexts:hashContexts,hashTypes:hashTypes,data:data};
+  data.buffer.push(escapeExpression(((stack1 = helpers['deck-card-list'] || (depth0 && depth0['deck-card-list'])),stack1 ? stack1.call(depth0, options) : helperMissing.call(depth0, "deck-card-list", options))));
+  data.buffer.push("\n    </div>\n</div>\n");
   return buffer;
   
 });

@@ -1,0 +1,9 @@
+<ul class="list-unstyled">
+    {{#each collection}}
+        <li>
+            {{deck-card-detail card=card count=count}}
+        </li>
+    {{else}}
+        None
+    {{/each}}
+</ul>

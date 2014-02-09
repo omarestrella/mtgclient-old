@@ -366,7 +366,23 @@
     "use strict";
     MTG.Deck = DS.Model.extend({
         title: DS.attr(),
-        "private": DS.attr()
+        "private": DS.attr(),
+        cards: DS.attr(),
+        creatures: function() {
+            return this.filterCardsOnType("Creature");
+        }.property("cards.[]"),
+        instants: function() {
+            return this.filterCardsOnType("Instant");
+        }.property("cards.[]"),
+        sorceries: function() {
+            return this.filterCardsOnType("Sorcery");
+        }.property("cards.[]"),
+        filterCardsOnType: function(type) {
+            var cards = this.get("cards");
+            return cards.filter(function(detail) {
+                return _.contains(detail.card.types, type);
+            });
+        }
     });
 })();
 
@@ -415,6 +431,42 @@
 
 (function() {
     "use strict";
+    MTG.DeckCardDetailComponent = Ember.Component.extend({
+        tagName: "span",
+        classNames: [ "deck-card-detail" ],
+        card: null,
+        count: 0,
+        imageUrl: null,
+        attachHoverPreview: function() {
+            var self = this;
+            var card = this.get("card");
+            this.$().hover(function() {
+                MTG.store.find("card", card.id).then(function(c) {
+                    self.set("imageUrl", c.get("mtgImage"));
+                });
+            }, function() {
+                self.set("imageUrl", null);
+            });
+        }.on("didInsertElement"),
+        removeListeners: function() {
+            this.$().off("hover");
+        }.on("willDestroyElement")
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.DeckCardListComponent = Ember.Component.extend({
+        collection: null
+    });
+})();
+
+(function() {
+    "use strict";
+})();
+
+(function() {
+    "use strict";
     MTG.DeckDetailRoute = Ember.Route.extend({
         model: function(params) {
             return this.store.find("deck", params.id);
@@ -427,6 +479,15 @@
     MTG.DeckDetailView = Ember.View.extend({
         templateName: "deck/deck-detail",
         classNames: [ "deck-detail" ]
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.DeckEditRoute = Ember.Route.extend({
+        model: function(params) {
+            return this.store.find("deck", params.id);
+        }
     });
 })();
 
