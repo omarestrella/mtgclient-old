@@ -3,6 +3,13 @@ MTG.Deck = DS.Model.extend({
     private: DS.attr(),
     cards: DS.attr(),
 
+    size: function () {
+        var counts = this.get('cards').mapProperty('count');
+        return _.reduce(counts, function (sum, num) {
+            return sum + num;
+        });
+    }.property('cards.[]'),
+
     creatures: function () {
         return this.filterCardsOnType('Creature');
     }.property('cards.[]'),
@@ -14,6 +21,14 @@ MTG.Deck = DS.Model.extend({
     sorceries: function () {
         return this.filterCardsOnType('Sorcery');
     }.property('cards.[]'),
+
+    enchantments: function () {
+        return this.filterCardsOnType('Enchantment');
+    }.property('cards.[]'),
+
+    lands: function () {
+        return this.filterCardsOnType('Land');
+    }.property('lands.[]'),
 
     filterCardsOnType: function (type) {
         var cards = this.get('cards');

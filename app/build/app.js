@@ -368,6 +368,12 @@
         title: DS.attr(),
         "private": DS.attr(),
         cards: DS.attr(),
+        size: function() {
+            var counts = this.get("cards").mapProperty("count");
+            return _.reduce(counts, function(sum, num) {
+                return sum + num;
+            });
+        }.property("cards.[]"),
         creatures: function() {
             return this.filterCardsOnType("Creature");
         }.property("cards.[]"),
@@ -377,6 +383,12 @@
         sorceries: function() {
             return this.filterCardsOnType("Sorcery");
         }.property("cards.[]"),
+        enchantments: function() {
+            return this.filterCardsOnType("Enchantment");
+        }.property("cards.[]"),
+        lands: function() {
+            return this.filterCardsOnType("Land");
+        }.property("lands.[]"),
         filterCardsOnType: function(type) {
             var cards = this.get("cards");
             return cards.filter(function(detail) {
@@ -463,6 +475,20 @@
 
 (function() {
     "use strict";
+})();
+
+(function() {
+    "use strict";
+    MTG.DeckDetailController = Ember.ObjectController.extend({});
+    Ember.Handlebars.registerBoundHelper("collection-count", function(collection) {
+        if (collection && !_.isEmpty(collection)) {
+            var sums = collection.mapProperty("count");
+            return _.reduce(sums, function(sum, num) {
+                return sum + num;
+            });
+        }
+        return 0;
+    });
 })();
 
 (function() {

@@ -270,11 +270,15 @@ function program1(depth0,data) {
   data.buffer.push("\n            Edit\n        ");
   }
 
-  data.buffer.push("<div class=\"row\">\n    <div class=\"col-sm-9\">\n        <h2>");
+  data.buffer.push("<div class=\"row\">\n    <div class=\"col-sm-9\">\n        <h2>\n            ");
   hashTypes = {};
   hashContexts = {};
   data.buffer.push(escapeExpression(helpers._triageMustache.call(depth0, "title", {hash:{},contexts:[depth0],types:["ID"],hashContexts:hashContexts,hashTypes:hashTypes,data:data})));
-  data.buffer.push("</h2>\n    </div>\n\n    <div class=\"col-sm-3\">\n        ");
+  data.buffer.push("\n            <small>");
+  hashTypes = {};
+  hashContexts = {};
+  data.buffer.push(escapeExpression(helpers._triageMustache.call(depth0, "size", {hash:{},contexts:[depth0],types:["ID"],hashContexts:hashContexts,hashTypes:hashTypes,data:data})));
+  data.buffer.push(" cards</small>\n        </h2>\n    </div>\n\n    <div class=\"col-sm-3\">\n        ");
   hashContexts = {'classNames': depth0};
   hashTypes = {'classNames': "STRING"};
   options = {hash:{
@@ -286,35 +290,67 @@ function program1(depth0,data) {
   hashTypes = {};
   hashContexts = {};
   data.buffer.push(escapeExpression(helpers.action.call(depth0, "deleteDeck", {hash:{},contexts:[depth0],types:["ID"],hashContexts:hashContexts,hashTypes:hashTypes,data:data})));
-  data.buffer.push(">\n            Delete\n        </a>\n    </div>\n</div>\n\n<div class=\"row\">\n    <div class=\"col-sm-3\">\n        <div class=\"card-group\">\n            <strong>Creatures</strong>\n\n            ");
+  data.buffer.push(">\n            Delete\n        </a>\n    </div>\n</div>\n\n<div class=\"row\">\n    <div class=\"col-sm-3\">\n        <div class=\"card-group\">\n            <strong>Creatures (");
+  hashTypes = {};
+  hashContexts = {};
+  options = {hash:{},contexts:[depth0],types:["ID"],hashContexts:hashContexts,hashTypes:hashTypes,data:data};
+  data.buffer.push(escapeExpression(((stack1 = helpers['collection-count'] || (depth0 && depth0['collection-count'])),stack1 ? stack1.call(depth0, "creatures", options) : helperMissing.call(depth0, "collection-count", "creatures", options))));
+  data.buffer.push(")</strong>\n\n            ");
   hashContexts = {'collection': depth0};
   hashTypes = {'collection': "ID"};
   options = {hash:{
     'collection': ("creatures")
   },contexts:[],types:[],hashContexts:hashContexts,hashTypes:hashTypes,data:data};
   data.buffer.push(escapeExpression(((stack1 = helpers['deck-card-list'] || (depth0 && depth0['deck-card-list'])),stack1 ? stack1.call(depth0, options) : helperMissing.call(depth0, "deck-card-list", options))));
-  data.buffer.push("\n        </div>\n    </div>\n\n    <div class=\"col-sm-3\">\n        <div class=\"card-group\">\n            <strong>Instants</strong>\n\n            ");
+  data.buffer.push("\n        </div>\n    </div>\n\n    <div class=\"col-sm-3\">\n        <div class=\"card-group\">\n            <strong>Instants (");
+  hashTypes = {};
+  hashContexts = {};
+  options = {hash:{},contexts:[depth0],types:["ID"],hashContexts:hashContexts,hashTypes:hashTypes,data:data};
+  data.buffer.push(escapeExpression(((stack1 = helpers['collection-count'] || (depth0 && depth0['collection-count'])),stack1 ? stack1.call(depth0, "instants", options) : helperMissing.call(depth0, "collection-count", "instants", options))));
+  data.buffer.push(")</strong>\n\n            ");
   hashContexts = {'collection': depth0};
   hashTypes = {'collection': "ID"};
   options = {hash:{
     'collection': ("instants")
   },contexts:[],types:[],hashContexts:hashContexts,hashTypes:hashTypes,data:data};
   data.buffer.push(escapeExpression(((stack1 = helpers['deck-card-list'] || (depth0 && depth0['deck-card-list'])),stack1 ? stack1.call(depth0, options) : helperMissing.call(depth0, "deck-card-list", options))));
-  data.buffer.push("\n        </div>\n\n        <div class=\"card-group\">\n            <strong>Sorceries</strong>\n\n            ");
+  data.buffer.push("\n        </div>\n\n        <div class=\"card-group\">\n            <strong>Sorceries (");
+  hashTypes = {};
+  hashContexts = {};
+  options = {hash:{},contexts:[depth0],types:["ID"],hashContexts:hashContexts,hashTypes:hashTypes,data:data};
+  data.buffer.push(escapeExpression(((stack1 = helpers['collection-count'] || (depth0 && depth0['collection-count'])),stack1 ? stack1.call(depth0, "sorceries", options) : helperMissing.call(depth0, "collection-count", "sorceries", options))));
+  data.buffer.push(")</strong>\n\n            ");
   hashContexts = {'collection': depth0};
   hashTypes = {'collection': "ID"};
   options = {hash:{
     'collection': ("sorceries")
   },contexts:[],types:[],hashContexts:hashContexts,hashTypes:hashTypes,data:data};
   data.buffer.push(escapeExpression(((stack1 = helpers['deck-card-list'] || (depth0 && depth0['deck-card-list'])),stack1 ? stack1.call(depth0, options) : helperMissing.call(depth0, "deck-card-list", options))));
-  data.buffer.push("\n        </div>\n    </div>\n\n    <div class=\"col-sm-3\">\n        <strong>Enchantments</strong>\n\n        ");
+  data.buffer.push("\n        </div>\n    </div>\n\n    <div class=\"col-sm-3\">\n        <div class=\"card-group\">\n            <strong>Enchantments (");
+  hashTypes = {};
+  hashContexts = {};
+  options = {hash:{},contexts:[depth0],types:["ID"],hashContexts:hashContexts,hashTypes:hashTypes,data:data};
+  data.buffer.push(escapeExpression(((stack1 = helpers['collection-count'] || (depth0 && depth0['collection-count'])),stack1 ? stack1.call(depth0, "enchantments", options) : helperMissing.call(depth0, "collection-count", "enchantments", options))));
+  data.buffer.push(")</strong>\n\n            ");
   hashContexts = {'collection': depth0};
   hashTypes = {'collection': "ID"};
   options = {hash:{
     'collection': ("enchantments")
   },contexts:[],types:[],hashContexts:hashContexts,hashTypes:hashTypes,data:data};
   data.buffer.push(escapeExpression(((stack1 = helpers['deck-card-list'] || (depth0 && depth0['deck-card-list'])),stack1 ? stack1.call(depth0, options) : helperMissing.call(depth0, "deck-card-list", options))));
-  data.buffer.push("\n    </div>\n</div>\n");
+  data.buffer.push("\n        </div>\n\n        <div class=\"card-group\">\n            <strong>Lands (");
+  hashTypes = {};
+  hashContexts = {};
+  options = {hash:{},contexts:[depth0],types:["ID"],hashContexts:hashContexts,hashTypes:hashTypes,data:data};
+  data.buffer.push(escapeExpression(((stack1 = helpers['collection-count'] || (depth0 && depth0['collection-count'])),stack1 ? stack1.call(depth0, "lands", options) : helperMissing.call(depth0, "collection-count", "lands", options))));
+  data.buffer.push(")</strong>\n\n            ");
+  hashContexts = {'collection': depth0};
+  hashTypes = {'collection': "ID"};
+  options = {hash:{
+    'collection': ("lands")
+  },contexts:[],types:[],hashContexts:hashContexts,hashTypes:hashTypes,data:data};
+  data.buffer.push(escapeExpression(((stack1 = helpers['deck-card-list'] || (depth0 && depth0['deck-card-list'])),stack1 ? stack1.call(depth0, options) : helperMissing.call(depth0, "deck-card-list", options))));
+  data.buffer.push("\n        </div>\n    </div>\n\n    <div class=\"col-sm-3\">\n\n    </div>\n</div>\n");
   return buffer;
   
 });
