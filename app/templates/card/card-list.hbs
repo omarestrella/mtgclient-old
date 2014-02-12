@@ -18,7 +18,7 @@
 
 <div class="card-list">
     {{#each card in content}}
-        <a href="#" {{action selectCard card}}>
+        <a href="#" {{action selectCard card}} {{bind-attr id=card.id}}>
             <h4>{{unbound card.name}}</h4>
         </a>
     {{/each}}

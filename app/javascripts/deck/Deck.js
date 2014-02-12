@@ -3,6 +3,10 @@ MTG.Deck = DS.Model.extend({
     private: DS.attr(),
     cards: DS.attr(),
 
+    path: function () {
+        return '/deck/' + this.get('id') + '/';
+    }.property('id'),
+
     size: function () {
         var counts = this.get('cards').mapProperty('count');
         return _.reduce(counts, function (sum, num) {

@@ -20,19 +20,5 @@ MTG.CardListController = Ember.Controller.extend({
 
     searchContentChanged: function () {
         this.set('content', this.get('controllers.filter.content'));
-    }.observes('controllers.filter.content'),
-
-    adjustHeight: function () {
-        this.setHeight();
-        $(window).on('resize', _.bind(this.setHeight, this));
-    }.on('didInsertElement'),
-
-    removeBindings: function () {
-        $(window).off('resize');
-    }.on('willDestroyElement'),
-
-    setHeight: function () {
-        var height = window.innerHeight;
-        this.$().css('height', height);
-    }
+    }.observes('controllers.filter.content')
 });

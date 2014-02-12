@@ -1,0 +1,65 @@
+<div class="row">
+    <div class="col-sm-3">
+        {{render "card.list" cardList}}
+    </div>
+
+    <div class="col-sm-9">
+        <div class="row">
+            <div class="col-sm-8">
+                <h2>
+                    {{title}}
+                </h2>
+            </div>
+
+            <div class="col-sm-4">
+                {{#if selectedCards.length}}
+                    <!-- <button class="btn btn-default" {{action revertDeck}}>
+                        Revert Deck
+                    </button> -->
+                {{/if}}
+
+                {{#link-to "deck.detail" id classNames="btn btn-primary"}}
+                    Done
+                {{/link-to}}
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-sm-4">
+                <div class="card-group">
+                    <strong>Creatures ({{collection-count creatures}})</strong>
+
+                    {{deck-card-list deck=content collection=creatures edit=true}}
+                </div>
+
+                <div class="card-group">
+                    <strong>Enchantments ({{collection-count enchantments}})</strong>
+
+                    {{deck-card-list deck=content collection=enchantments edit=true}}
+                </div>
+            </div>
+
+            <div class="col-sm-4">
+                <div class="card-group">
+                    <strong>Instants ({{collection-count instants}})</strong>
+
+                    {{deck-card-list deck=content collection=instants edit=true}}
+                </div>
+
+                <div class="card-group">
+                    <strong>Sorceries ({{collection-count sorceries}})</strong>
+
+                    {{deck-card-list deck=content collection=sorceries edit=true}}
+                </div>
+            </div>
+
+            <div class="col-sm-4">
+                <div class="card-group">
+                    <strong>Lands ({{collection-count lands}})</strong>
+
+                    {{deck-card-list deck=content collection=lands edit=true}}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

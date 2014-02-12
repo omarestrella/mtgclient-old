@@ -152,6 +152,30 @@
         }
         return "http://gatheringapi.herokuapp.com";
     }();
+    MTG.Ajax = Ember.Object.create({
+        post: function(path, data) {
+            return new Ember.RSVP.Promise(function(resolve, reject) {
+                var postData = {
+                    data: JSON.stringify(data)
+                };
+                Ember.$.post(location + path, postData).then(function(data) {
+                    resolve(data);
+                }, function(data) {
+                    reject(data);
+                });
+            });
+        }
+    });
+})();
+
+(function() {
+    "use strict";
+    var location = function() {
+        if (window.location.hostname === "localhost") {
+            return "http://localhost:9000";
+        }
+        return "http://gatheringapi.herokuapp.com";
+    }();
     MTG.ApplicationAdapter = DS.RESTAdapter.extend({
         namespace: location,
         serializer: MTG.ApplicationSerializer,
@@ -339,7 +363,15 @@
         }.observes("searchQuery"),
         searchContentChanged: function() {
             this.set("content", this.get("controllers.filter.content"));
-        }.observes("controllers.filter.content"),
+        }.observes("controllers.filter.content")
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.CardListView = Ember.View.extend({
+        classNames: [ "card-list" ],
+        templateName: "card/card-list",
         adjustHeight: function() {
             this.setHeight();
             $(window).on("resize", _.bind(this.setHeight, this));
@@ -356,18 +388,13 @@
 
 (function() {
     "use strict";
-    MTG.CardListView = Ember.View.extend({
-        classNames: [ "card-list" ],
-        templateName: "card/card-list"
-    });
-})();
-
-(function() {
-    "use strict";
     MTG.Deck = DS.Model.extend({
         title: DS.attr(),
         "private": DS.attr(),
         cards: DS.attr(),
+        path: function() {
+            return "/deck/" + this.get("id") + "/";
+        }.property("id"),
         size: function() {
             var counts = this.get("cards").mapProperty("count");
             return _.reduce(counts, function(sum, num) {
@@ -400,35 +427,8 @@
 
 (function() {
     "use strict";
-    MTG.DeckDetailRoute = Ember.Route.extend({
-        model: function(params) {
-            return this.store.find("deck", params.id);
-        }
-    });
-})();
-
-(function() {
-    "use strict";
-    MTG.DeckDetailView = Ember.View.extend({
-        templateName: "deck/deck-detail",
-        classNames: [ "deck-detail" ]
-    });
-})();
-
-(function() {
-    "use strict";
-    MTG.DeckIndexRoute = Ember.Route.extend({
-        model: function() {
-            return this.store.find("deck");
-        }
-    });
-})();
-
-(function() {
-    "use strict";
-    MTG.DeckIndexView = Ember.View.extend({
-        templateName: "deck/deck-list",
-        classNames: [ "deck-list" ]
+    MTG.DeckController = Ember.Controller.extend({
+        editMode: false
     });
 })();
 
@@ -438,6 +438,14 @@
         model: function() {
             return this.store.find("deck");
         }
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.DeckView = Ember.View.extend({
+        templateName: "deck",
+        classNames: [ "deck" ]
     });
 })();
 
@@ -469,12 +477,34 @@
 (function() {
     "use strict";
     MTG.DeckCardListComponent = Ember.Component.extend({
-        collection: null
+        classNames: [ "deck-card-list" ],
+        edit: false,
+        deck: null,
+        collection: null,
+        actions: {
+            addCard: function(card, count) {
+                var data = [ {
+                    card: card.id,
+                    count: count + 1
+                } ];
+                this.saveCardData(data);
+            },
+            removeCard: function(card, count) {
+                var data = [ {
+                    card: card.id,
+                    count: count - 1
+                } ];
+                this.saveCardData(data);
+            }
+        },
+        saveCardData: function(data) {
+            var deck = this.get("deck");
+            var path = deck.get("path");
+            MTG.Ajax.post(path + "update_cards/", data).then(function() {
+                deck.reload();
+            });
+        }
     });
-})();
-
-(function() {
-    "use strict";
 })();
 
 (function() {
@@ -494,6 +524,10 @@
 (function() {
     "use strict";
     MTG.DeckDetailRoute = Ember.Route.extend({
+        beforeModel: function() {
+            var controller = this.controllerFor("deck");
+            controller.set("editMode", false);
+        },
         model: function(params) {
             return this.store.find("deck", params.id);
         }
@@ -510,10 +544,49 @@
 
 (function() {
     "use strict";
+    MTG.DeckEditController = Ember.ObjectController.extend({
+        selectedCards: [],
+        actions: {
+            selectCard: function(card) {
+                var self = this;
+                var deck = this.get("content");
+                var path = deck.get("path");
+                var data = [ {
+                    card: card.get("id")
+                } ];
+                MTG.Ajax.post(path + "update_cards/", data).then(function() {
+                    self.get("selectedCards").addObject(card);
+                    deck.reload();
+                });
+            },
+            revertDeck: function() {
+                this.get("selectedCards").clear();
+            }
+        },
+        cardList: function() {
+            return this.store.find("card");
+        }.property()
+    });
+})();
+
+(function() {
+    "use strict";
     MTG.DeckEditRoute = Ember.Route.extend({
+        beforeModel: function() {
+            var controller = this.controllerFor("deck");
+            controller.set("editMode", true);
+        },
         model: function(params) {
             return this.store.find("deck", params.id);
         }
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.DeckEditView = Ember.View.extend({
+        templateName: "deck/deck-edit",
+        classNames: [ "deck-edit" ]
     });
 })();
 
