@@ -64,6 +64,7 @@ MTG.Session = Ember.Object.extend({
 
             $.post(path, data).then(
                 function (data, status, xhr) {
+                    self.set('token', token);
                     self.handleAuthentication(data);
 
                     resolve(data, xhr);
@@ -88,6 +89,7 @@ MTG.Session = Ember.Object.extend({
             $.post(path, data).then(
                 function (data, status, xhr) {
                     if(data.token) {
+                        self.set('token', data.token);
                         self.handleAuthentication(data);
 
                         resolve(data, xhr);
@@ -105,5 +107,28 @@ MTG.Session = Ember.Object.extend({
 
     handleAuthentication: function (data) {
         setAjaxPreflight(data);
+    },
+
+    logout: function () {
+        var self = this;
+
+        return new Ember.RSVP.Promise(function (resolve, reject) {
+            var path = '%@/auth/logout/'.fmt(location);
+            $.post(path, {}).then(
+                function () {
+                    $.removeCookie('token');
+
+                    self.set('token', null);
+                    self.set('user', null);
+
+                    resolve();
+                },
+
+                function () {
+                    Ember.Logger.error('Logout error');
+                    reject()
+                }
+            )
+        });
     }
 });

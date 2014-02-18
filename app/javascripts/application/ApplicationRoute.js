@@ -4,6 +4,14 @@ MTG.ApplicationRoute = Ember.Route.extend({
             if(!this.session.get('isAuthenticated')) {
                 this.transitionTo('login');
             }
+        },
+
+        logout: function () {
+            var route = this;
+            var session = MTG.get('session');
+            session.logout().then(function () {
+                route.transitionTo('login');
+            });
         }
     },
 

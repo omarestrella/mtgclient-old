@@ -74,6 +74,8 @@
             this.route("new");
         });
         this.route("login");
+        this.route("logout");
+        this.route("register");
     });
 })();
 
@@ -129,6 +131,7 @@
                     token: token
                 };
                 $.post(path, data).then(function(data, status, xhr) {
+                    self.set("token", token);
                     self.handleAuthentication(data);
                     resolve(data, xhr);
                 }, function(data, status, xhr) {
@@ -146,6 +149,7 @@
                 };
                 $.post(path, data).then(function(data, status, xhr) {
                     if (data.token) {
+                        self.set("token", data.token);
                         self.handleAuthentication(data);
                         resolve(data, xhr);
                     } else {
@@ -158,6 +162,21 @@
         },
         handleAuthentication: function(data) {
             setAjaxPreflight(data);
+        },
+        logout: function() {
+            var self = this;
+            return new Ember.RSVP.Promise(function(resolve, reject) {
+                var path = "%@/auth/logout/".fmt(location);
+                $.post(path, {}).then(function() {
+                    $.removeCookie("token");
+                    self.set("token", null);
+                    self.set("user", null);
+                    resolve();
+                }, function() {
+                    Ember.Logger.error("Logout error");
+                    reject();
+                });
+            });
         }
     });
 })();
@@ -269,6 +288,13 @@
                 if (!this.session.get("isAuthenticated")) {
                     this.transitionTo("login");
                 }
+            },
+            logout: function() {
+                var route = this;
+                var session = MTG.get("session");
+                session.logout().then(function() {
+                    route.transitionTo("login");
+                });
             }
         },
         beforeModel: function(transition) {
@@ -685,6 +711,15 @@
         templateName: [ "login/login" ],
         submit: function() {
             this.get("controller").send("login");
+        }
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.LogoutRoute = Ember.Route.extend({
+        activate: function() {
+            this.send("logout");
         }
     });
 })();
