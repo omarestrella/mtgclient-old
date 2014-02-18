@@ -76,6 +76,7 @@ module.exports = function (grunt) {
                         'vendor/ember/ember.js',
                         'vendor/ember-data-shim/ember-data.js',
                         'vendor/lodash/dist/lodash.js',
+                        'vendor/socket.io-client/dist/socket.io.js',
                         'vendor/requirejs/require.js'
                     ]
                 }

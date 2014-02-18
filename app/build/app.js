@@ -5,6 +5,22 @@
             Ember.Logger.error(error.stack);
         }
     });
+    var sockets = {};
+    var connect = function(namespace) {
+        return io.connect("http://localhost:9000/" + namespace);
+    };
+    var socket = function(namespace) {
+        var socket = sockets[namespace];
+        if (!socket) {
+            socket = connect(namespace);
+            sockets[namespace] = socket;
+        }
+        return socket;
+    };
+    Function.prototype.onEvent = function(namespace, eventName) {
+        this.__socket_events = [ namespace, eventName ];
+        return this;
+    };
     var MTG = Ember.Application.create({
         LOG_ACTIVE_GENERATION: true,
         LOG_MODULE_RESOLVER: true,
@@ -12,6 +28,8 @@
         LOG_TRANSITIONS_INTERNAL: true,
         LOG_VIEW_LOOKUPS: true,
         modulePrefix: "mtg",
+        connect: connect,
+        socket: socket,
         lookupController: function(name) {
             return this.container.lookup("controller:" + name);
         }
@@ -281,6 +299,40 @@
 
 (function() {
     "use strict";
+    MTG.SocketMixin = Ember.Mixin.create({
+        init: function() {
+            this.socket = MTG.connect("deck");
+            this._super();
+        }
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.WebSocketMixin = Ember.Mixin.create({
+        init: function() {
+            this._super();
+            var self = this;
+            var func, prop, socket;
+            for (prop in this) {
+                func = this[prop];
+                (function(scopedFunc) {
+                    if (scopedFunc && scopedFunc.__socket_events) {
+                        var events = scopedFunc.__socket_events;
+                        var namespace = events[0], event = events[1];
+                        socket = MTG.socket(namespace);
+                        socket.on(event, function() {
+                            scopedFunc.apply(self, arguments);
+                        });
+                    }
+                })(func);
+            }
+        }
+    });
+})();
+
+(function() {
+    "use strict";
     MTG.Card = DS.Model.extend({
         name: DS.attr(),
         text: DS.attr(),
@@ -418,8 +470,11 @@
         }.property("lands.[]"),
         filterCardsOnType: function(type) {
             var cards = this.get("cards");
-            return cards.filter(function(detail) {
+            var filtered = cards.filter(function(detail) {
                 return _.contains(detail.card.types, type);
+            });
+            return _.sortBy(filtered, function(data) {
+                return data.card.name;
             });
         }
     });
@@ -501,7 +556,7 @@
             var deck = this.get("deck");
             var path = deck.get("path");
             MTG.Ajax.post(path + "update_cards/", data).then(function() {
-                deck.reload();
+                MTG.socket("deck").emit("deck_update", deck.get("id"));
             });
         }
     });
@@ -544,7 +599,8 @@
 
 (function() {
     "use strict";
-    MTG.DeckEditController = Ember.ObjectController.extend({
+    MTG.DeckEditController = Ember.ObjectController.extend(MTG.WebSocketMixin, {
+        joined: false,
         selectedCards: [],
         actions: {
             selectCard: function(card) {
@@ -556,16 +612,28 @@
                 } ];
                 MTG.Ajax.post(path + "update_cards/", data).then(function() {
                     self.get("selectedCards").addObject(card);
-                    deck.reload();
+                    self.socket.emit("deck_update", deck.get("id"));
                 });
             },
             revertDeck: function() {
                 this.get("selectedCards").clear();
             }
         },
+        init: function() {
+            this._super();
+        },
         cardList: function() {
             return this.store.find("card");
-        }.property()
+        }.property(),
+        deckLoaded: function() {
+            if (this.get("content.id") && !this.get("joined")) {
+                MTG.socket("deck").emit("join", this.get("content.id"));
+                this.toggleProperty("joined");
+            }
+        }.observes("content.id"),
+        deckUpdated: function() {
+            this.get("content").reload();
+        }.onEvent("deck", "deck_update")
     });
 })();
 

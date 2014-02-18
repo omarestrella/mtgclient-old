@@ -36,8 +36,12 @@ MTG.Deck = DS.Model.extend({
 
     filterCardsOnType: function (type) {
         var cards = this.get('cards');
-        return cards.filter(function (detail) {
+        var filtered = cards.filter(function (detail) {
             return _.contains(detail.card.types, type);
+        });
+
+        return _.sortBy(filtered, function (data) {
+            return data.card.name;
         });
     }
 });

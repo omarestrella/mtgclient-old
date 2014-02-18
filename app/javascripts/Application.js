@@ -4,6 +4,27 @@ Ember.RSVP.configure('onerror', function(error) {
     }
 });
 
+var sockets = {};
+
+var connect = function (namespace) {
+    return io.connect('http://localhost:9000/' + namespace);
+};
+
+var socket = function (namespace) {
+    var socket = sockets[namespace];
+    if(!socket) {
+        socket = connect(namespace);
+        sockets[namespace] = socket;
+    }
+
+    return socket;
+};
+
+Function.prototype.onEvent = function (namespace, eventName) {
+    this.__socket_events = [namespace, eventName];
+    return this;
+};
+
 var MTG = Ember.Application.create({
     LOG_ACTIVE_GENERATION: true,
     LOG_MODULE_RESOLVER: true,
@@ -11,6 +32,9 @@ var MTG = Ember.Application.create({
     LOG_TRANSITIONS_INTERNAL: true,
     LOG_VIEW_LOOKUPS: true,
     modulePrefix: 'mtg',
+
+    connect: connect,
+    socket: socket,
 
     lookupController: function (name) {
         return this.container.lookup('controller:' + name);
