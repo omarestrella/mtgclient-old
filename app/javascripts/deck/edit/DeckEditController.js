@@ -15,7 +15,11 @@ MTG.DeckEditController = Ember.ObjectController.extend(MTG.WebSocketMixin, {
                 }
             ];
 
-            MTG.Ajax.post(path + 'update_cards/', data).then(function () {
+            var postData = {
+                data: JSON.stringify(data)
+            };
+
+            MTG.Ajax.post(path + 'update_cards/', postData).then(function () {
                 self.get('selectedCards').addObject(card);
                 self.socket.emit('deck_update', deck.get('id'));
             });

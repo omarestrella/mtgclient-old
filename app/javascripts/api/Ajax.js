@@ -7,13 +7,31 @@ var location = (function () {
 }());
 
 MTG.Ajax = Ember.Object.create({
+    get: function () {
+        if(arguments.length > 1) {
+            return this._get.apply(this, arguments);
+        }
+
+        return this._super(arguments);
+    },
+
+    _get: function (path, data) {
+        return new Ember.RSVP.Promise(function (resolve, reject) {
+            Ember.$.get(location + path, data).then(
+                function (data) {
+                    resolve(data);
+                },
+
+                function (data) {
+                    reject(data);
+                }
+            );
+        });
+    },
+
     post: function (path, data) {
         return new Ember.RSVP.Promise(function (resolve, reject) {
-            var postData = {
-                data: JSON.stringify(data)
-            };
-
-            Ember.$.post(location + path, postData).then(
+             Ember.$.post(location + path, data).then(
                 function (data) {
                     resolve(data);
                 },

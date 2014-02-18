@@ -20,7 +20,7 @@ MTG.ApplicationRoute = Ember.Route.extend({
 
         return this.session.authenticateWithToken()
             .catch(function () {
-                if(!self.session.get('isAuthenticated')) {
+                if(!self.session.get('isAuthenticated') && transition.targetName !== 'register') {
                     self.transitionTo('login');
                 }
             });

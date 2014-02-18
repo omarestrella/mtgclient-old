@@ -190,12 +190,24 @@
         return "http://gatheringapi.herokuapp.com";
     }();
     MTG.Ajax = Ember.Object.create({
+        get: function() {
+            if (arguments.length > 1) {
+                return this._get.apply(this, arguments);
+            }
+            return this._super(arguments);
+        },
+        _get: function(path, data) {
+            return new Ember.RSVP.Promise(function(resolve, reject) {
+                Ember.$.get(location + path, data).then(function(data) {
+                    resolve(data);
+                }, function(data) {
+                    reject(data);
+                });
+            });
+        },
         post: function(path, data) {
             return new Ember.RSVP.Promise(function(resolve, reject) {
-                var postData = {
-                    data: JSON.stringify(data)
-                };
-                Ember.$.post(location + path, postData).then(function(data) {
+                Ember.$.post(location + path, data).then(function(data) {
                     resolve(data);
                 }, function(data) {
                     reject(data);
@@ -300,7 +312,7 @@
         beforeModel: function(transition) {
             var self = this;
             return this.session.authenticateWithToken().catch(function() {
-                if (!self.session.get("isAuthenticated")) {
+                if (!self.session.get("isAuthenticated") && transition.targetName !== "register") {
                     self.transitionTo("login");
                 }
             });
@@ -581,7 +593,10 @@
         saveCardData: function(data) {
             var deck = this.get("deck");
             var path = deck.get("path");
-            MTG.Ajax.post(path + "update_cards/", data).then(function() {
+            var postData = {
+                data: JSON.stringify(data)
+            };
+            MTG.Ajax.post(path + "update_cards/", postData).then(function() {
                 MTG.socket("deck").emit("deck_update", deck.get("id"));
             });
         }
@@ -636,7 +651,10 @@
                 var data = [ {
                     card: card.get("id")
                 } ];
-                MTG.Ajax.post(path + "update_cards/", data).then(function() {
+                var postData = {
+                    data: JSON.stringify(data)
+                };
+                MTG.Ajax.post(path + "update_cards/", postData).then(function() {
                     self.get("selectedCards").addObject(card);
                     self.socket.emit("deck_update", deck.get("id"));
                 });
@@ -720,6 +738,72 @@
     MTG.LogoutRoute = Ember.Route.extend({
         activate: function() {
             this.send("logout");
+        }
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.RegisterController = Ember.Controller.extend({
+        username: null,
+        email: null,
+        password: null,
+        passwordRepeat: null,
+        registrationError: false,
+        usernameFree: false,
+        actions: {
+            register: function() {
+                var username = this.get("username"), email = this.get("email"), password = this.get("password"), passwordRepeat = this.get("passwordRepeat");
+                if (username && email && password && password === passwordRepeat) {
+                    var self = this;
+                    var data = {
+                        username: username,
+                        password: password,
+                        email: email
+                    };
+                    MTG.Ajax.post("/auth/register/", data).then(function() {
+                        self.set("registrationError", false);
+                        self.session.authenticateWithCredentials(username, password).then(function() {
+                            self.transitionTo("index");
+                        });
+                    }).catch(function() {
+                        self.set("registrationError", true);
+                    });
+                }
+            }
+        },
+        formNotComplete: function() {
+            var username = this.get("username"), email = this.get("email"), password = this.get("password"), passwordRepeat = this.get("passwordRepeat");
+            return !(username && email && password && password === passwordRepeat);
+        }.property("username", "email", "password", "passwordRepeat"),
+        passwordsNoMatch: function() {
+            return this.get("password") !== this.get("passwordRepeat");
+        }.property("password", "passwordRepeat"),
+        usernameCheckPassed: function() {
+            var username = this.get("username"), free = this.get("usernameFree");
+            return username && free;
+        }.property("username", "usernameFree"),
+        checkUsername: function() {
+            var self = this;
+            var data = {
+                username: this.get("username")
+            };
+            MTG.Ajax.get("/auth/register/", data).then(function(res) {
+                self.set("usernameFree", false);
+            }).catch(function(res) {
+                self.set("usernameFree", true);
+            });
+        }.observes("username")
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.RegisterView = Ember.View.extend({
+        templateName: "register/register",
+        classNames: [ "register" ],
+        submit: function() {
+            this.get("controller").send("register");
         }
     });
 })();

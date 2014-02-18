@@ -34,7 +34,11 @@ MTG.DeckCardListComponent = Ember.Component.extend({
         var deck = this.get('deck');
         var path = deck.get('path');
 
-        MTG.Ajax.post(path + 'update_cards/', data).then(function () {
+        var postData = {
+            data: JSON.stringify(data)
+        };
+
+        MTG.Ajax.post(path + 'update_cards/', postData).then(function () {
             MTG.socket('deck').emit('deck_update', deck.get('id'));
         });
     }
