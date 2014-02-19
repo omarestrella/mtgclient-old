@@ -64,7 +64,6 @@ MTG.Session = Ember.Object.extend({
 
             $.post(path, data).then(
                 function (data, status, xhr) {
-                    self.set('token', token);
                     self.handleAuthentication(data);
 
                     resolve(data, xhr);
@@ -89,7 +88,6 @@ MTG.Session = Ember.Object.extend({
             $.post(path, data).then(
                 function (data, status, xhr) {
                     if(data.token) {
-                        self.set('token', data.token);
                         self.handleAuthentication(data);
 
                         resolve(data, xhr);
@@ -106,6 +104,8 @@ MTG.Session = Ember.Object.extend({
     },
 
     handleAuthentication: function (data) {
+        this.set('token', data.token);
+        this.set('user', data.user);
         setAjaxPreflight(data);
     },
 

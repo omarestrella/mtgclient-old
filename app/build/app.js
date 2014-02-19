@@ -131,7 +131,6 @@
                     token: token
                 };
                 $.post(path, data).then(function(data, status, xhr) {
-                    self.set("token", token);
                     self.handleAuthentication(data);
                     resolve(data, xhr);
                 }, function(data, status, xhr) {
@@ -149,7 +148,6 @@
                 };
                 $.post(path, data).then(function(data, status, xhr) {
                     if (data.token) {
-                        self.set("token", data.token);
                         self.handleAuthentication(data);
                         resolve(data, xhr);
                     } else {
@@ -161,6 +159,8 @@
             });
         },
         handleAuthentication: function(data) {
+            this.set("token", data.token);
+            this.set("user", data.user);
             setAjaxPreflight(data);
         },
         logout: function() {
@@ -190,11 +190,11 @@
         return "http://gatheringapi.herokuapp.com";
     }();
     MTG.Ajax = Ember.Object.create({
-        get: function() {
+        get: function(key) {
             if (arguments.length > 1) {
                 return this._get.apply(this, arguments);
             }
-            return this._super(arguments);
+            return Ember.get(this, key);
         },
         _get: function(path, data) {
             return new Ember.RSVP.Promise(function(resolve, reject) {
@@ -478,6 +478,82 @@
 
 (function() {
     "use strict";
+    MTG.ModalComponent = Ember.Component.extend({
+        layoutName: "components/modal",
+        classNameBindings: [ ":modal", "isVisible:in:", ":fade" ],
+        isVisible: false,
+        delegate: null,
+        headerText: "Modal",
+        confirmText: "Confirm",
+        cancelText: "Cancel",
+        contentViewClass: null,
+        actions: {
+            confirm: function() {
+                this.hide();
+                var delegate = this.get("delegate");
+                delegate.send("confirm");
+            },
+            cancel: function() {
+                this.hide();
+                var delegate = this.get("delegate");
+                delegate.send("cancel");
+            }
+        },
+        init: function() {
+            this._super();
+            this.set("content", this.get("delegate"));
+        },
+        showModal: function() {
+            var background = '<div class="modal-backdrop fade"></div>';
+            var $background = Ember.$(background);
+            $background.appendTo("body");
+            Ember.run.scheduleOnce("afterRender", this, function() {
+                Ember.$("body").addClass("modal-open");
+                $background.addClass("in");
+                this.set("isVisible", true);
+            });
+            this.set("$background", $background);
+        }.on("didInsertElement"),
+        hidingModal: function() {
+            this.set("isVisible", false);
+        }.on("willDestroyElement"),
+        hide: function() {
+            var self = this;
+            var $background = this.get("$background");
+            Ember.$("body").removeClass("modal-open");
+            $background.removeClass("in");
+            if (!$.support.transition) {
+                $background.remove();
+                this.destroy();
+            } else {
+                this.$().one($.support.transition.end, function() {
+                    $background.remove();
+                    self.destroy();
+                });
+            }
+        },
+        click: Ember.K
+    });
+    MTG.ModalComponent.reopenClass({
+        show: function(options) {
+            var modal = this.create(options);
+            modal.container = modal.get("delegate.container");
+            modal.appendTo(".ember-application");
+            return modal;
+        }
+    });
+})();
+
+(function() {
+    "use strict";
+    MTG.CreateDeckView = Ember.View.extend({
+        templateName: "deck/deck-create",
+        classNames: [ "create-deck" ]
+    });
+})();
+
+(function() {
+    "use strict";
     MTG.Deck = DS.Model.extend({
         title: DS.attr(),
         "private": DS.attr(),
@@ -521,7 +597,35 @@
 (function() {
     "use strict";
     MTG.DeckController = Ember.Controller.extend({
-        editMode: false
+        editMode: false,
+        name: null,
+        "private": false,
+        actions: {
+            createNewDeck: function() {
+                var createDeckModal = MTG.ModalComponent.show({
+                    delegate: this,
+                    headerText: "Create Deck",
+                    contentViewClass: MTG.CreateDeckView
+                });
+            },
+            confirm: function() {
+                var self = this;
+                var name = this.get("name"), privateDeck = this.get("private");
+                var data = {
+                    title: name,
+                    "private": privateDeck,
+                    user: MTG.get("session.user.id")
+                };
+                MTG.Ajax.post("/deck/", data).then(function(data) {
+                    if (data.id) {
+                        self.transitionToRoute("deck.edit", data.id);
+                    }
+                }).catch(function() {
+                    Ember.logger.error("Create deck error");
+                });
+            },
+            cancel: Ember.K
+        }
     });
 })();
 
@@ -656,7 +760,7 @@
                 };
                 MTG.Ajax.post(path + "update_cards/", postData).then(function() {
                     self.get("selectedCards").addObject(card);
-                    self.socket.emit("deck_update", deck.get("id"));
+                    MTG.socket("deck").emit("deck_update", deck.get("id"));
                 });
             },
             revertDeck: function() {

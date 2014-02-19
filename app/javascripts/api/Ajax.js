@@ -7,12 +7,12 @@ var location = (function () {
 }());
 
 MTG.Ajax = Ember.Object.create({
-    get: function () {
+    get: function (key) {
         if(arguments.length > 1) {
             return this._get.apply(this, arguments);
         }
 
-        return this._super(arguments);
+        return Ember.get(this, key);
     },
 
     _get: function (path, data) {
