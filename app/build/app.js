@@ -558,11 +558,15 @@
         title: DS.attr(),
         "private": DS.attr(),
         cards: DS.attr(),
+        edit_group: DS.attr(),
         path: function() {
             return "/deck/" + this.get("id") + "/";
         }.property("id"),
         size: function() {
             var counts = this.get("cards").mapProperty("count");
+            if (!counts || counts.length === 0) {
+                return 0;
+            }
             return _.reduce(counts, function(sum, num) {
                 return sum + num;
             });
@@ -582,6 +586,10 @@
         lands: function() {
             return this.filterCardsOnType("Land");
         }.property("lands.[]"),
+        canEdit: function() {
+            var user = MTG.get("session.user.id");
+            return this.get("edit_group").indexOf(user) > -1;
+        }.property("MTG.session.user"),
         filterCardsOnType: function(type) {
             var cards = this.get("cards");
             var filtered = cards.filter(function(detail) {
@@ -800,6 +808,11 @@
         },
         model: function(params) {
             return this.store.find("deck", params.id);
+        },
+        afterModel: function(model) {
+            if (!model.get("canEdit")) {
+                this.transitionTo("deck.detail", model.get("id"));
+            }
         }
     });
 })();

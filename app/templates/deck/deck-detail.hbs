@@ -7,13 +7,15 @@
     </div>
 
     <div class="col-sm-3">
-        {{#link-to "deck.edit" id classNames="btn btn-default"}}
-            Edit
-        {{/link-to}}
+        {{#if canEdit}}
+            {{#link-to "deck.edit" id classNames="btn btn-default"}}
+                Edit
+            {{/link-to}}
 
-        <a href="#" class="btn btn-danger" {{action deleteDeck}}>
-            Delete
-        </a>
+            <a href="#" class="btn btn-danger" {{action deleteDeck}}>
+                Delete
+            </a>
+        {{/if}}
     </div>
 </div>
 
