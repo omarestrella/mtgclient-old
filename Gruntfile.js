@@ -1,3 +1,5 @@
+var port = process.env.PORT || 3000;
+
 module.exports = function (grunt) {
     grunt.loadNpmTasks('grunt-contrib-less');
     grunt.loadNpmTasks('grunt-contrib-watch');
@@ -93,7 +95,7 @@ module.exports = function (grunt) {
         connect: {
             server: {
                 options: {
-                    port: 5000,
+                    port: port,
                     base: 'app'
                 }
             }
