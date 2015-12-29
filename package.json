@@ -7,9 +7,11 @@
     "url": "http://omarestrella.me/"
   },
   "scripts": {
+    "postinstall": "./node_modules/.bin/bower install",
     "start": "./node_modules/.bin/grunt"
   },
   "dependencies": {
+    "bower": "^1.7.1",
     "ember-template-compiler": "~1.2.0",
     "grunt": "~0.4.0",
     "grunt-cli": "^0.1.13",
