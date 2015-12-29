@@ -1,5 +1,5 @@
 var location = (function () {
-    if(window.location.hostname === 'localhost') {
+    if (window.location.hostname === 'localhost') {
          return 'http://localhost:9000';
     }
 

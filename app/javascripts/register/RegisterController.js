@@ -34,7 +34,7 @@ MTG.RegisterController = Ember.Controller.extend({
                     })
                     .catch(function () {
                         self.set('registrationError', true);
-                    })
+                    });
             }
         }
     },
@@ -45,7 +45,7 @@ MTG.RegisterController = Ember.Controller.extend({
             password = this.get('password'),
             passwordRepeat = this.get('passwordRepeat');
 
-        return !(username && email && password && password === passwordRepeat)
+        return !(username && email && password && password === passwordRepeat);
     }.property('username', 'email', 'password', 'passwordRepeat'),
 
     passwordsNoMatch: function () {

@@ -337,16 +337,6 @@
 
 (function() {
     "use strict";
-    MTG.SocketMixin = Ember.Mixin.create({
-        init: function() {
-            this.socket = MTG.connect("deck");
-            this._super();
-        }
-    });
-})();
-
-(function() {
-    "use strict";
     MTG.WebSocketMixin = Ember.Mixin.create({
         init: function() {
             this._super();
