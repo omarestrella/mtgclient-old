@@ -7,7 +7,7 @@
     "url": "http://omarestrella.me/"
   },
   "scripts": {
-    "start": "grunt"
+    "start": "./node_modules/.bin/grunt"
   },
   "dependencies": {
     "ember-template-compiler": "~1.2.0",
