@@ -9,7 +9,7 @@ module.exports = function (grunt) {
     grunt.loadNpmTasks('grunt-es6-module-transpiler');
 
     grunt.registerTask('default', '', ['transpile', 'uglify:thirdParty', 'uglify:main', 'connect', 'watch']);
-    grunt.registerTask('server', '', ['connect']);
+    grunt.registerTask('server', '', ['connect', 'watch']);
 
     grunt.initConfig({
         watch: {
